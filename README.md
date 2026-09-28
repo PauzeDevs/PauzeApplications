@@ -24,6 +24,8 @@ The current `main` branch contains the initial working release foundation plus U
 - Applicant status lookup.
 - Personal application history.
 - Applicant DM notifications when status changes.
+- Applicant-controlled withdrawal of active applications.
+- Configurable applicant notification templates.
 
 ### Staff experience
 
@@ -52,6 +54,7 @@ The current `main` branch contains the initial working release foundation plus U
 - Persistent SQLite database.
 - Guild-scoped application lookups.
 - Audit events for submissions and staff actions.
+- Live reviewer analytics and acceptance-rate snapshot.
 - Local-first data storage with no third-party application-data service required.
 - GitHub Actions type-check and build verification.
 
@@ -216,6 +219,7 @@ Final decisions disable the review controls on the original review message.
 | `/application apply` | Everyone | Open the application catalogue and start a form |
 | `/application status` | Everyone | View your latest application |
 | `/application history` | Everyone | View your recent application history |
+| `/application withdraw` | Everyone | Withdraw your active application |
 
 ### Server administration
 
@@ -225,6 +229,7 @@ Final decisions disable the review controls on the original review message.
 | `/application create` | Manage Server | Create an application type |
 | `/application panel` | Manage Server | Publish the application panel |
 | `/application list` | Manage Server | List application types |
+| `/application template` | Manage Server | Configure an applicant notification template |
 
 ### Reviewer commands
 
@@ -237,6 +242,7 @@ Final decisions disable the review controls on the original review message.
 | `/application assign` | Reviewer | Assign a reviewer |
 | `/application archive` | Reviewer | Archive an application |
 | `/application note` | Reviewer | Save internal notes |
+| `/application analytics` | Reviewer | View application statistics |
 
 ## Application IDs
 
@@ -254,10 +260,11 @@ The public ID can be shared with applicants. Administrative commands also accept
 ⏳ On Hold
 🟢 Accepted
 🔴 Rejected
+⚪ Withdrawn
 ⚫ Archived
 ```
 
-`Archived` is reserved for the planned archive workflow; the current review UI focuses on pending, under review, hold, accepted and rejected states.
+`Withdrawn` is a final applicant-controlled state. It can be archived by staff like other finalized applications.
 
 ## Database
 
