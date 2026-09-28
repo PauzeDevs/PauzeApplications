@@ -28,6 +28,14 @@ const application = new SlashCommandBuilder()
   .addSubcommand(sub => sub
     .setName('history')
     .setDescription('View your recent application history'))
+  .addSubcommand(sub => sub
+    .setName('withdraw')
+    .setDescription('Withdraw your active application')
+    .addStringOption(option => option
+      .setName('id')
+      .setDescription('Application ID')
+      .setRequired(true)
+      .setMaxLength(100)))
 
   // 🛡️ Reviewer workspace
   .addSubcommand(sub => sub
@@ -113,6 +121,11 @@ const application = new SlashCommandBuilder()
       .setDescription('Application ID')
       .setRequired(true)
       .setMaxLength(100)))
+
+  // 📊 Reviewer analytics
+  .addSubcommand(sub => sub
+    .setName('analytics')
+    .setDescription('View application statistics and review health'))
 
   // ⚙️ Server administration
   .addSubcommand(sub => sub
