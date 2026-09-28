@@ -56,6 +56,17 @@ export interface ApplicationSearchResult extends ApplicationRecord {
   typeName: string;
 }
 
+export interface ApplicationSession {
+  sessionId: string;
+  guildId: string;
+  userId: string;
+  typeId: number;
+  page: number;
+  answers: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ApplicationStats {
   total: number;
   pending: number;
@@ -131,6 +142,20 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_application_votes_application
     ON application_votes(application_id);
 
+  CREATE TABLE IF NOT EXISTS application_sessions (
+    session_id TEXT PRIMARY KEY,
+    guild_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    type_id INTEGER NOT NULL,
+    page INTEGER NOT NULL DEFAULT 0,
+    answers_json TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_application_sessions_user
+    ON application_sessions(guild_id, user_id);
+
   CREATE TABLE IF NOT EXISTS audit_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     guild_id TEXT NOT NULL,
@@ -196,6 +221,138 @@ function toSearchResult(row: any): ApplicationSearchResult {
     ...toApplication(row),
     typeName: String(row.type_name),
   };
+}
+
+function toApplicationSession(row: any): ApplicationSession {
+  return {
+    sessionId: String(row.session_id),
+    guildId: String(row.guild_id),
+    userId: String(row.user_id),
+    typeId: Number(row.type_id),
+    page: Number(row.page),
+    answers: JSON.parse(row.answers_json),
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  };
+}
+
+export function createApplicationSession(
+  guildId: string,
+  userId: string,
+  typeId: number,
+  page: number,
+  answers: string[],
+): ApplicationSession {
+  const sessionId =
+    randomUUID().replace(/-/g, '').slice(0, 18).toUpperCase();
+  const timestamp = now();
+
+  db.prepare(`
+    INSERT INTO application_sessions (
+      session_id,
+      guild_id,
+      user_id,
+      type_id,
+      page,
+      answers_json,
+      created_at,
+      updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    sessionId,
+    guildId,
+    userId,
+    typeId,
+    page,
+    JSON.stringify(answers),
+    timestamp,
+    timestamp,
+  );
+
+  return getApplicationSession(
+    guildId,
+    userId,
+    sessionId,
+  )!;
+}
+
+export function getApplicationSession(
+  guildId: string,
+  userId: string,
+  sessionId: string,
+): ApplicationSession | undefined {
+  const row = db.prepare(`
+    SELECT *
+    FROM application_sessions
+    WHERE session_id = ?
+      AND guild_id = ?
+      AND user_id = ?
+    LIMIT 1
+  `).get(sessionId, guildId, userId) as any;
+
+  return row ? toApplicationSession(row) : undefined;
+}
+
+export function updateApplicationSession(
+  guildId: string,
+  userId: string,
+  sessionId: string,
+  page: number,
+  answers: string[],
+): ApplicationSession | undefined {
+  db.prepare(`
+    UPDATE application_sessions
+    SET page = ?, answers_json = ?, updated_at = ?
+    WHERE session_id = ?
+      AND guild_id = ?
+      AND user_id = ?
+  `).run(
+    page,
+    JSON.stringify(answers),
+    now(),
+    sessionId,
+    guildId,
+    userId,
+  );
+
+  return getApplicationSession(
+    guildId,
+    userId,
+    sessionId,
+  );
+}
+
+export function deleteApplicationSession(
+  guildId: string,
+  userId: string,
+  sessionId: string,
+): void {
+  db.prepare(`
+    DELETE FROM application_sessions
+    WHERE session_id = ?
+      AND guild_id = ?
+      AND user_id = ?
+  `).run(sessionId, guildId, userId);
+}
+
+export function cleanupApplicationSessions(
+  maxAgeMinutes = 30,
+): number {
+  const safeMinutes = Math.min(
+    Math.max(Math.floor(maxAgeMinutes), 1),
+    1440,
+  );
+  const cutoff = new Date(
+    Date.now() - safeMinutes * 60_000,
+  ).toISOString();
+
+  const result = db.prepare(`
+    DELETE FROM application_sessions
+    WHERE updated_at < ?
+  `).run(cutoff);
+
+  return result.changes;
 }
 
 export function setGuildConfig(
