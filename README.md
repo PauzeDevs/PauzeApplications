@@ -217,10 +217,6 @@ Final decisions disable the review controls on the original review message.
 | `/application status` | Everyone | View your latest application |
 | `/application history` | Everyone | View your recent application history |
 
-### Reviewer commands
-
-| Command | Who | Purpose |
-| --- | --- | --- |
 ### Server administration
 
 | Command | Who | Purpose |
