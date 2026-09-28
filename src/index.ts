@@ -1120,14 +1120,6 @@ async function handleApplicationCommand(
       return;
     }
 
-    await sendAudit(
-      guildId,
-      0,
-      interaction.user.id,
-      enabled ? "application_type_enabled" : "application_type_disabled",
-      type.name,
-    );
-
     await interaction.reply({
       embeds: [
         new EmbedBuilder()
