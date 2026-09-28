@@ -201,6 +201,56 @@ const application = new SlashCommandBuilder()
       .setName('question_5')
       .setDescription('Question 5')
       .setRequired(false)
+      .setMaxLength(400))
+    .addStringOption(option => option
+      .setName('question_6')
+      .setDescription('Question 6')
+      .setRequired(false)
+      .setMaxLength(400))
+    .addStringOption(option => option
+      .setName('question_7')
+      .setDescription('Question 7')
+      .setRequired(false)
+      .setMaxLength(400))
+    .addStringOption(option => option
+      .setName('question_8')
+      .setDescription('Question 8')
+      .setRequired(false)
+      .setMaxLength(400))
+    .addStringOption(option => option
+      .setName('question_9')
+      .setDescription('Question 9')
+      .setRequired(false)
+      .setMaxLength(400))
+    .addStringOption(option => option
+      .setName('question_10')
+      .setDescription('Question 10')
+      .setRequired(false)
+      .setMaxLength(400))
+    .addStringOption(option => option
+      .setName('question_11')
+      .setDescription('Question 11')
+      .setRequired(false)
+      .setMaxLength(400))
+    .addStringOption(option => option
+      .setName('question_12')
+      .setDescription('Question 12')
+      .setRequired(false)
+      .setMaxLength(400))
+    .addStringOption(option => option
+      .setName('question_13')
+      .setDescription('Question 13')
+      .setRequired(false)
+      .setMaxLength(400))
+    .addStringOption(option => option
+      .setName('question_14')
+      .setDescription('Question 14')
+      .setRequired(false)
+      .setMaxLength(400))
+    .addStringOption(option => option
+      .setName('question_15')
+      .setDescription('Question 15')
+      .setRequired(false)
       .setMaxLength(400)))
   .addSubcommand(sub => sub
     .setName('panel')
