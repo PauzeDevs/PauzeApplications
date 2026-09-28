@@ -38,9 +38,12 @@ import {
   getApplicationType,
   getApplicationTypes,
   getApplicationAnalytics,
+  getApplicationVoteSummary,
   getGuildConfig,
   setApplicationMessage,
   setApplicationTypeEnabled,
+  recordApplicationVote,
+  setApplicationVoting,
   getLatestApplicationForUser,
   setGuildConfig,
   getReviewQueue,
@@ -53,6 +56,7 @@ import type {
   AppStatus,
   ApplicationMessageStatus,
   ApplicationRecord,
+  ApplicationVote,
 } from "./db.js";
 import {
   ACTIVE_STATUSES,
@@ -163,16 +167,30 @@ function reviewButtons(
   applicationId: number,
   locked = false,
 ): ActionRowBuilder<ButtonBuilder> {
+  const application = getApplication(applicationId);
+  const type = application
+    ? getApplicationType(application.typeId, application.guildId)
+    : undefined;
+  const voteMode = type?.reviewMode === "vote";
+
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setCustomId("app:accept:" + applicationId)
-      .setLabel("Accept")
+      .setCustomId(
+        voteMode
+          ? "app:vote:accepted:" + applicationId
+          : "app:accept:" + applicationId,
+      )
+      .setLabel(voteMode ? "Vote Accept" : "Accept")
       .setEmoji("✅")
       .setStyle(ButtonStyle.Success)
       .setDisabled(locked),
     new ButtonBuilder()
-      .setCustomId("app:reject:" + applicationId)
-      .setLabel("Reject")
+      .setCustomId(
+        voteMode
+          ? "app:vote:rejected:" + applicationId
+          : "app:reject:" + applicationId,
+      )
+      .setLabel(voteMode ? "Vote Reject" : "Reject")
       .setEmoji("❌")
       .setStyle(ButtonStyle.Danger)
       .setDisabled(locked),
@@ -1376,6 +1394,7 @@ async function handleApplicationCommand(
       "archive",
       "note",
       "analytics",
+      "vote",
     ].includes(subcommand) &&
     !isReviewerMember(interaction)
   ) {
@@ -2472,17 +2491,12 @@ async function handleReviewButton(
     return;
   }
 
-  const [
-    ,
-    action,
-    rawId,
-  ] =
-    interaction.customId.split(
-      ":",
-    );
+  const parts = interaction.customId.split(":");
+  const action = parts[1];
+  const vote = parts[2] as ApplicationVote | undefined;
+  const rawId = action === "vote" ? parts[3] : parts[2];
 
-  const applicationId =
-    Number(rawId);
+  const applicationId = Number(rawId);
 
   if (
     !Number.isInteger(
@@ -2512,6 +2526,144 @@ async function handleReviewButton(
         "❌ Application not found.",
       ephemeral: true,
     });
+    return;
+  }
+
+  if (action === "vote") {
+    const type = getApplicationType(
+      application.typeId,
+      application.guildId,
+    );
+
+    if (type?.reviewMode !== "vote") {
+      await interaction.reply({
+        content: "❌ Voting is not enabled for this application type.",
+        ephemeral: true,
+      });
+      return;
+    }
+
+    if (vote !== "accepted" && vote !== "rejected") {
+      await interaction.reply({
+        content: "❌ Invalid vote.",
+        ephemeral: true,
+      });
+      return;
+    }
+
+    if (!ACTIVE_STATUSES.includes(application.status)) {
+      await interaction.reply({
+        content: "⚠️ Voting is closed for this application.",
+        ephemeral: true,
+      });
+      return;
+    }
+
+    recordApplicationVote(
+      application.id,
+      interaction.user.id,
+      vote,
+    );
+
+    const summary = getApplicationVoteSummary(application.id);
+    const acceptedReached =
+      summary.accepted >= type.approvalThreshold;
+    const rejectedReached =
+      summary.rejected >= type.approvalThreshold;
+
+    if (acceptedReached || rejectedReached) {
+      const finalStatus: AppStatus =
+        acceptedReached ? "accepted" : "rejected";
+
+      const updated = transitionApplication(
+        application.id,
+        finalStatus,
+        interaction.user.id,
+      );
+
+      if (!updated) {
+        await interaction.reply({
+          content: "❌ The vote was recorded, but the final decision could not be saved.",
+          ephemeral: true,
+        });
+        return;
+      }
+
+      let roleAssigned = true;
+
+      if (finalStatus === "accepted") {
+        roleAssigned = await assignAcceptanceRole(updated);
+      }
+
+      await sendAudit(
+        interaction.guild.id,
+        updated.id,
+        interaction.user.id,
+        finalStatus,
+        "Voting threshold reached: " +
+          summary.accepted +
+          " accept / " +
+          summary.rejected +
+          " reject.",
+      );
+
+      await notifyApplicant(updated, finalStatus);
+
+      const finalEmbed = addAnswers(
+        applicationReviewEmbed(
+          updated,
+          type.name,
+        ),
+        updated,
+        type.questions,
+      ).setFooter({
+        text:
+          "Pauze Applications • " +
+          STATUS_LABELS[finalStatus] +
+          " • voting threshold reached",
+      });
+
+      await interaction.update({
+        embeds: [finalEmbed],
+        components: [reviewButtons(updated.id, true)],
+      });
+
+      return;
+    }
+
+    await interaction.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(COLORS.brand)
+          .setTitle("🗳️ Vote recorded")
+          .setDescription(
+            [
+              "Your vote has been saved for **" + application.publicId + "**.",
+              "",
+              "🟢 Accept: **" + summary.accepted + "**",
+              "🔴 Reject: **" + summary.rejected + "**",
+              "",
+              "Threshold: **" + type.approvalThreshold + "**",
+            ].join("\n"),
+          )
+          .setFooter({
+            text: "Pauze Applications • Reviewer vote",
+          }),
+      ],
+      ephemeral: true,
+    });
+
+    await interaction.message.edit({
+      embeds: [
+        addAnswers(
+          applicationReviewEmbed(application, type.name),
+          application,
+          type.questions,
+        ),
+      ],
+      components: [reviewButtons(application.id)],
+    }).catch(() => null);
+
     return;
   }
 
