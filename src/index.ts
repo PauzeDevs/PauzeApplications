@@ -37,13 +37,18 @@ import {
   getApplicationByPublicId,
   getApplicationType,
   getApplicationTypes,
+  createApplicationSession,
+  cleanupApplicationSessions,
+  deleteApplicationSession,
   getApplicationAnalytics,
+  getApplicationSession,
   getApplicationVoteSummary,
   getGuildConfig,
   setApplicationMessage,
   setApplicationTypeEnabled,
   recordApplicationVote,
   setApplicationVoting,
+  updateApplicationSession,
   getLatestApplicationForUser,
   setGuildConfig,
   getReviewQueue,
@@ -96,6 +101,8 @@ const STATUS_LABELS: Record<AppStatus, string> = {
   withdrawn: "⚪ Withdrawn",
   archived: "⚫ Archived",
 };
+
+const FORM_PAGE_SIZE = 5;
 
 const STATUS_COLORS: Record<AppStatus, number> = {
   pending: COLORS.brand,
@@ -2460,6 +2467,54 @@ async function handleApplicationCommand(
   }
 }
 
+type ApplicationFormType = NonNullable<ReturnType<typeof getApplicationType>>;
+
+function buildApplicationModal(
+  type: ApplicationFormType,
+  page: number,
+  sessionId?: string,
+): ModalBuilder {
+  const start = page * FORM_PAGE_SIZE;
+  const questions = type.questions.slice(
+    start,
+    start + FORM_PAGE_SIZE,
+  );
+
+  const modal = new ModalBuilder()
+    .setCustomId(
+      "app:submit:" +
+        type.id +
+        ":" +
+        page +
+        (sessionId ? ":" + sessionId : ""),
+    )
+    .setTitle(
+      (
+        type.name +
+        " • " +
+        (page + 1)
+      ).slice(0, 45),
+    );
+
+  modal.addComponents(
+    ...questions.map((question, index) =>
+      new ActionRowBuilder<TextInputBuilder>()
+        .addComponents(
+          new TextInputBuilder()
+            .setCustomId("q" + index)
+            .setLabel(
+              question.slice(0, 45),
+            )
+            .setStyle(TextInputStyle.Paragraph)
+            .setRequired(true)
+            .setMaxLength(1000),
+        ),
+    ),
+  );
+
+  return modal;
+}
+
 async function handleSelectMenu(
   interaction: any,
 ): Promise<void> {
@@ -2529,52 +2584,96 @@ async function handleSelectMenu(
     return;
   }
 
-  const modal =
-    new ModalBuilder()
-      .setCustomId(
-        "app:submit:" +
-          type.id,
-      )
-      .setTitle(
-        type.name.slice(
-          0,
-          45,
-        ),
-      );
+  await interaction.showModal(
+    buildApplicationModal(type, 0),
+  );
+}
 
-  const rows =
-    type.questions.map(
-      (
-        question,
-        index,
-      ) =>
-        new ActionRowBuilder<TextInputBuilder>()
-          .addComponents(
-            new TextInputBuilder()
-              .setCustomId(
-                "q" +
-                  index,
-              )
-              .setLabel(
-                question.slice(
-                  0,
-                  45,
-                ),
-              )
-              .setStyle(
-                TextInputStyle.Paragraph,
-              )
-              .setRequired(true)
-              .setMaxLength(1000),
-          ),
-    );
+async function handleApplicationFormButton(
+  interaction: any,
+): Promise<void> {
+  if (!interaction.guild) {
+    await interaction.reply({
+      content: "❌ This interaction can only be used in a server.",
+      ephemeral: true,
+    });
+    return;
+  }
 
-  modal.addComponents(
-    ...rows,
+  const parts = interaction.customId.split(":");
+  const action = parts[2];
+  const sessionId = parts[3];
+
+  if (!sessionId) {
+    await interaction.reply({
+      content: "❌ This form session is invalid.",
+      ephemeral: true,
+    });
+    return;
+  }
+
+  const session = getApplicationSession(
+    interaction.guild.id,
+    interaction.user.id,
+    sessionId,
   );
 
+  if (!session) {
+    await interaction.reply({
+      content:
+        "⚠️ This application draft has expired. Please start again.",
+      ephemeral: true,
+    });
+    return;
+  }
+
+  if (action === "cancel") {
+    deleteApplicationSession(
+      interaction.guild.id,
+      interaction.user.id,
+      sessionId,
+    );
+
+    await interaction.update({
+      content: "🗑️ Application draft cancelled.",
+      embeds: [],
+      components: [],
+    });
+    return;
+  }
+
+  const type = getApplicationType(
+    session.typeId,
+    interaction.guild.id,
+  );
+
+  if (!type || !type.enabled) {
+    deleteApplicationSession(
+      interaction.guild.id,
+      interaction.user.id,
+      sessionId,
+    );
+
+    await interaction.update({
+      content:
+        "❌ This application form is no longer available.",
+      embeds: [],
+      components: [],
+    });
+    return;
+  }
+
+  const nextPage =
+    action === "back"
+      ? Math.max(0, session.page - 1)
+      : session.page;
+
   await interaction.showModal(
-    modal,
+    buildApplicationModal(
+      type,
+      nextPage,
+      sessionId,
+    ),
   );
 }
 
@@ -2590,11 +2689,10 @@ async function handleApplicationSubmit(
     return;
   }
 
-  const typeId =
-    Number(
-      interaction.customId
-        .split(":")[2],
-    );
+  const formParts = interaction.customId.split(":");
+  const typeId = Number(formParts[2]);
+  const page = Number(formParts[3] ?? 0);
+  const sessionId = formParts[4];
 
   const type =
     getApplicationType(
@@ -2629,28 +2727,74 @@ async function handleApplicationSubmit(
     return;
   }
 
-  const answers =
-    type.questions.map(
+  const pageQuestions = type.questions.slice(
+    page * FORM_PAGE_SIZE,
+    (page + 1) * FORM_PAGE_SIZE,
+  );
+
+  if (
+    !Number.isInteger(page) ||
+    page < 0 ||
+    pageQuestions.length === 0
+  ) {
+    await interaction.reply({
+      content: "❌ Invalid application form page.",
+      ephemeral: true,
+    });
+    return;
+  }
+
+  const pageAnswers =
+    pageQuestions.map(
       (_, index) =>
         interaction.fields
           .getTextInputValue(
-            "q" +
-              index,
+            "q" + index,
           )
           .trim(),
     );
 
   if (
-    answers.some(
+    pageAnswers.some(
       answer => !answer,
     )
   ) {
     await interaction.reply({
       content:
-        "❌ Every question must contain an answer.",
+        "❌ Every question on this page must contain an answer.",
       ephemeral: true,
     });
     return;
+  }
+
+  let answers = pageAnswers;
+
+  if (sessionId) {
+    const session = getApplicationSession(
+      interaction.guild.id,
+      interaction.user.id,
+      sessionId,
+    );
+
+    if (!session) {
+      await interaction.reply({
+        content:
+          "⚠️ This application draft has expired. Please start again.",
+        ephemeral: true,
+      });
+      return;
+    }
+
+    answers = [
+      ...session.answers.slice(
+        0,
+        page * FORM_PAGE_SIZE,
+      ),
+      ...pageAnswers,
+      ...session.answers.slice(
+        (page + 1) * FORM_PAGE_SIZE,
+      ),
+    ];
   }
 
   // Validate the destination before creating the record so a bad setup cannot
@@ -2679,6 +2823,100 @@ async function handleApplicationSubmit(
       ephemeral: true,
     });
     return;
+  }
+
+  const hasMorePages =
+    (page + 1) * FORM_PAGE_SIZE <
+    type.questions.length;
+
+  if (hasMorePages) {
+    const session =
+      sessionId
+        ? updateApplicationSession(
+            interaction.guild.id,
+            interaction.user.id,
+            sessionId,
+            page + 1,
+            answers,
+          )
+        : createApplicationSession(
+            interaction.guild.id,
+            interaction.user.id,
+            typeId,
+            page + 1,
+            answers,
+          );
+
+    const nextRow =
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId(
+            "app:form:back:" +
+              session.sessionId,
+          )
+          .setLabel("Back")
+          .setEmoji("◀️")
+          .setStyle(ButtonStyle.Secondary)
+          .setDisabled(page === 0),
+        new ButtonBuilder()
+          .setCustomId(
+            "app:form:next:" +
+              session.sessionId,
+          )
+          .setLabel("Continue")
+          .setEmoji("▶️")
+          .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+          .setCustomId(
+            "app:form:cancel:" +
+              session.sessionId,
+          )
+          .setLabel("Cancel")
+          .setEmoji("🗑️")
+          .setStyle(ButtonStyle.Danger),
+      );
+
+    await interaction.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(COLORS.brand)
+          .setTitle(
+            "✅ Page " +
+              (page + 1) +
+              " saved",
+          )
+          .setDescription(
+            [
+              "Your answers have been saved securely.",
+              "",
+              "📄 Next page: **" +
+                (page + 2) +
+                "** of **" +
+                Math.ceil(
+                  type.questions.length /
+                    FORM_PAGE_SIZE,
+                ) +
+                "**",
+              "💡 You can go back and edit previous answers.",
+            ].join("\n"),
+          )
+          .setFooter({
+            text: "Pauze Applications • Draft saved",
+          }),
+      ],
+      components: [nextRow],
+      ephemeral: true,
+    });
+
+    return;
+  }
+
+  if (sessionId) {
+    deleteApplicationSession(
+      interaction.guild.id,
+      interaction.user.id,
+      sessionId,
+    );
   }
 
   const application =
@@ -3281,6 +3519,7 @@ async function handleNotesModal(
   });
 }
 
+cleanupApplicationSessions();
 client.once(
   Events.ClientReady,
   readyClient => {
@@ -3345,6 +3584,14 @@ client.on(
           );
         }
 
+        return;
+      }
+
+      if (
+        interaction.isButton() &&
+        interaction.customId.startsWith("app:form:")
+      ) {
+        await handleApplicationFormButton(interaction);
         return;
       }
 
