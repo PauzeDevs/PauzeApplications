@@ -2,7 +2,7 @@
 
 Pauze Applications is being designed as a full Discord-native application workflow, not just a questionnaire.
 
-Market research across current application/form products shows that the baseline has moved beyond simple forms: mature systems commonly provide review queues, decisions, role actions, reviewer access, private notes, applicant follow-up, workflow actions, history and analytics. citeturn0search0turn0search3turn0search11
+The product target is the current generation of application systems: review queues, decisions, role actions, reviewer access, private notes, applicant follow-up, workflow actions, history and analytics — combined into one coherent PauzeX-style experience.
 
 ## Product pillars
 
@@ -72,7 +72,7 @@ Possible actions:
 - Record a reason
 - Schedule a later action
 
-Current products already expose combinations of role actions, private review, voting, interviews, scheduled actions and command/workflow actions; Pauze Applications will treat these as one coherent system instead of scattered features. citeturn0search0turn0search3
+The goal is to combine these into a single predictable workflow engine instead of scattered one-off features.
 
 ### 5. Analytics
 
@@ -89,8 +89,6 @@ Planned metrics:
 - Applications by period
 - SLA/overdue applications
 - Decision history
-
-Analytics and export are already differentiators in the current application-bot market, so this is a first-class roadmap item rather than an afterthought. citeturn0search5
 
 ### 6. Security & governance
 
@@ -165,7 +163,7 @@ The exact command names may change as the interaction design is implemented; com
 
 **Discord should feel like the product.**
 
-We will prefer native Discord components—buttons, select menus, modals, commands and contextual actions—over unnecessarily complicated command syntax. Discord officially supports slash commands, context-menu commands, buttons, select menus and modals as interaction primitives for apps. citeturn0search13
+Prefer native Discord components — buttons, select menus, modals, slash commands and contextual actions — over unnecessarily complicated command syntax.
 
 ## Release strategy
 
