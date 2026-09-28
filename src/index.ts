@@ -600,6 +600,71 @@ async function handleApplicationCommand(
   // 👤 Applicant-facing commands
   // --------------------------------------------------------------------------
 
+  if (subcommand === "apply") {
+    const types = getEnabledApplicationTypes(guildId);
+
+    if (!types.length) {
+      await interaction.reply({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(COLORS.muted)
+            .setTitle("📭 Applications are unavailable")
+            .setDescription(
+              "No application forms are currently published. Please check back later.",
+            )
+            .setFooter({
+              text: "Pauze Applications",
+            }),
+        ],
+        ephemeral: true,
+      });
+      return;
+    }
+
+    const menu = new StringSelectMenuBuilder()
+      .setCustomId("application:apply")
+      .setPlaceholder("✨ Choose an application to start");
+
+    for (const type of types.slice(0, 25)) {
+      menu.addOptions(
+        new StringSelectMenuOptionBuilder()
+          .setLabel(trimText(type.name, 100))
+          .setDescription(trimText(type.description, 100))
+          .setValue(String(type.id))
+          .setEmoji("📋"),
+      );
+    }
+
+    await interaction.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(COLORS.brand)
+          .setAuthor({
+            name: "Pauze Applications",
+            iconURL: client.user?.displayAvatarURL(),
+          })
+          .setTitle("🚀 Start an Application")
+          .setDescription(
+            [
+              "Choose a form below to begin.",
+              "",
+              "🔒 Your answers are private.",
+              "⚡ You can submit directly inside Discord.",
+              "📌 Only one active application of the same type is allowed.",
+            ].join("\n"),
+          )
+          .setFooter({
+            text: "Pauze Applications • Select a form to continue",
+          }),
+      ],
+      components: [
+        new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu),
+      ],
+      ephemeral: true,
+    });
+    return;
+  }
+
   if (subcommand === "status") {
     const reference =
       interaction.options.getString("id");
