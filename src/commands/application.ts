@@ -1,0 +1,21 @@
+import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
+
+export const applicationCommand = new SlashCommandBuilder()
+  .setName('application')
+  .setDescription('Manage Pauze Applications')
+  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+  .addSubcommand(sub => sub.setName('setup').setDescription('Configure the application review system')
+    .addChannelOption(o => o.setName('review_channel').setDescription('Channel where staff review applications').setRequired(true))
+    .addRoleOption(o => o.setName('reviewer_role').setDescription('Role allowed to review applications').setRequired(true))
+    .addChannelOption(o => o.setName('log_channel').setDescription('Optional audit log channel').setRequired(false)))
+  .addSubcommand(sub => sub.setName('create').setDescription('Create an application type')
+    .addStringOption(o => o.setName('name').setDescription('Application name').setRequired(true).setMaxLength(80))
+    .addStringOption(o => o.setName('description').setDescription('Short description shown to applicants').setRequired(true).setMaxLength(1000))
+    .addRoleOption(o => o.setName('acceptance_role').setDescription('Optional role given after acceptance').setRequired(false))
+    .addStringOption(o => o.setName('question_1').setDescription('Question 1').setRequired(true).setMaxLength(400))
+    .addStringOption(o => o.setName('question_2').setDescription('Question 2').setRequired(false).setMaxLength(400))
+    .addStringOption(o => o.setName('question_3').setDescription('Question 3').setRequired(false).setMaxLength(400))
+    .addStringOption(o => o.setName('question_4').setDescription('Question 4').setRequired(false).setMaxLength(400))
+    .addStringOption(o => o.setName('question_5').setDescription('Question 5').setRequired(false).setMaxLength(400)))
+  .addSubcommand(sub => sub.setName('panel').setDescription('Publish the application panel'))
+  .addSubcommand(sub => sub.setName('list').setDescription('List configured application types'));
