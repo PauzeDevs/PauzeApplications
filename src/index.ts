@@ -2847,6 +2847,15 @@ async function handleApplicationSubmit(
             answers,
           );
 
+    if (!session) {
+      await interaction.reply({
+        content:
+          "❌ The application draft could not be saved. Please try again.",
+        ephemeral: true,
+      });
+      return;
+    }
+
     const nextRow =
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder()
