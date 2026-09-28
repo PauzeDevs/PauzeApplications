@@ -67,6 +67,23 @@ const application = new SlashCommandBuilder()
       .setRequired(true)
       .setMaxLength(100)))
   .addSubcommand(sub => sub
+    .setName('vote')
+    .setDescription('Cast a vote on a voting-mode application')
+    .addStringOption(option => option
+      .setName('id')
+      .setDescription('Application ID')
+      .setRequired(true)
+      .setMaxLength(100))
+    .addStringOption(option => option
+      .setName('vote')
+      .setDescription('Your decision vote')
+      .setRequired(true)
+      .addChoices(
+        { name: '🟢 Accept', value: 'accepted' },
+        { name: '🔴 Reject', value: 'rejected' },
+      )))
+
+  .addSubcommand(sub => sub
     .setName('decide')
     .setDescription('Accept, reject, or hold an application')
     .addStringOption(option => option
@@ -191,6 +208,29 @@ const application = new SlashCommandBuilder()
   .addSubcommand(sub => sub
     .setName('list')
     .setDescription('List application types'))
+  .addSubcommand(sub => sub
+    .setName('voting')
+    .setDescription('Configure single-reviewer or voting mode')
+    .addStringOption(option => option
+      .setName('id')
+      .setDescription('Application type ID')
+      .setRequired(true)
+      .setMaxLength(20))
+    .addStringOption(option => option
+      .setName('mode')
+      .setDescription('Review mode')
+      .setRequired(true)
+      .addChoices(
+        { name: '👤 Single reviewer', value: 'single' },
+        { name: '👥 Multi-reviewer voting', value: 'vote' },
+      ))
+    .addIntegerOption(option => option
+      .setName('threshold')
+      .setDescription('Votes required for a final decision')
+      .setRequired(true)
+      .setMinValue(1)
+      .setMaxValue(10)))
+
   .addSubcommand(sub => sub
     .setName('toggle')
     .setDescription('Enable or disable an application type')
