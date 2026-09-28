@@ -54,3 +54,9 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Runtime smoke test
+        env:
+          DATABASE_PATH: ${{ runner.temp }}/pauze-applications-ci.db
+        run: |
+          node --input-type=module -e "const mod = await import('./dist/db.js'); const typeId = mod.createApplicationType('ci-guild', 'CI Test', 'Smoke test', ['Question'], null); if (!mod.getApplicationType(typeId, 'ci-guild')) process.exit(1); mod.db.close();"
