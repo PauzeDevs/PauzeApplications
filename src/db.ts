@@ -33,7 +33,10 @@ export interface ApplicationType {
   rejectedMessage: string;
   holdMessage: string;
   withdrawnMessage: string;
+  reviewMode: 'single' | 'vote';
+  approvalThreshold: number;
 }
+
 
 export interface ApplicationRecord {
   id: number;
@@ -117,6 +120,17 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_applications_public_id
     ON applications(guild_id, public_id);
 
+  CREATE TABLE IF NOT EXISTS application_votes (
+    application_id INTEGER NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+    reviewer_id TEXT NOT NULL,
+    vote TEXT NOT NULL CHECK (vote IN ('accepted', 'rejected')),
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (application_id, reviewer_id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_application_votes_application
+    ON application_votes(application_id);
+
   CREATE TABLE IF NOT EXISTS audit_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     guild_id TEXT NOT NULL,
@@ -141,6 +155,8 @@ const applicationTypeMigrations = [
   ['rejected_message', "Your application {id} has been rejected."],
   ['hold_message', "Your application {id} has been placed on hold. ⏳"],
   ['withdrawn_message', "Your application {id} has been withdrawn. ⚪"],
+  ['review_mode', 'single'],
+  ['approval_threshold', '1'],
 ] as const;
 
 for (const [column, defaultValue] of applicationTypeMigrations) {
@@ -264,6 +280,8 @@ export function getApplicationTypes(guildId: string): ApplicationType[] {
     rejectedMessage: String(row.rejected_message ?? ''),
     holdMessage: String(row.hold_message ?? ''),
     withdrawnMessage: String(row.withdrawn_message ?? ''),
+    reviewMode: row.review_mode === 'vote' ? 'vote' : 'single',
+    approvalThreshold: Math.max(1, Number(row.approval_threshold ?? 1)),
   }));
 }
 
@@ -291,6 +309,8 @@ export function getApplicationType(
     rejectedMessage: String(row.rejected_message ?? ''),
     holdMessage: String(row.hold_message ?? ''),
     withdrawnMessage: String(row.withdrawn_message ?? ''),
+    reviewMode: row.review_mode === 'vote' ? 'vote' : 'single',
+    approvalThreshold: Math.max(1, Number(row.approval_threshold ?? 1)),
   };
 }
 
@@ -505,6 +525,76 @@ export function setApplicationTypeEnabled(
   ).run(enabled ? 1 : 0, typeId, guildId);
 
   return result.changes > 0;
+}
+
+export type ReviewMode = 'single' | 'vote';
+export type ApplicationVote = 'accepted' | 'rejected';
+
+export interface ApplicationVoteSummary {
+  accepted: number;
+  rejected: number;
+  total: number;
+}
+
+export function setApplicationVoting(
+  guildId: string,
+  typeId: number,
+  mode: ReviewMode,
+  threshold: number,
+): boolean {
+  const type = getApplicationType(typeId, guildId);
+  if (!type) return false;
+
+  const safeThreshold = Math.min(
+    Math.max(Math.floor(threshold), 1),
+    10,
+  );
+
+  db.prepare(
+    'UPDATE application_types SET review_mode = ?, approval_threshold = ? WHERE id = ? AND guild_id = ?',
+  ).run(mode, safeThreshold, typeId, guildId);
+
+  return true;
+}
+
+export function recordApplicationVote(
+  applicationId: number,
+  reviewerId: string,
+  vote: ApplicationVote,
+): boolean {
+  const result = db.prepare(
+    'INSERT INTO application_votes (application_id, reviewer_id, vote) VALUES (?, ?, ?) ' +
+    'ON CONFLICT(application_id, reviewer_id) DO UPDATE SET vote = excluded.vote, created_at = CURRENT_TIMESTAMP',
+  ).run(applicationId, reviewerId, vote);
+
+  return result.changes > 0;
+}
+
+export function getApplicationVoteSummary(
+  applicationId: number,
+): ApplicationVoteSummary {
+  const rows = db.prepare(
+    'SELECT vote, COUNT(*) AS count FROM application_votes WHERE application_id = ? GROUP BY vote',
+  ).all(applicationId) as { vote: ApplicationVote; count: number }[];
+
+  const summary: ApplicationVoteSummary = {
+    accepted: 0,
+    rejected: 0,
+    total: 0,
+  };
+
+  for (const row of rows) {
+    const count = Number(row.count);
+    summary.total += count;
+
+    if (row.vote === 'accepted') {
+      summary.accepted = count;
+    } else {
+      summary.rejected = count;
+    }
+  }
+
+  return summary;
 }
 
 export type ApplicationMessageStatus =
