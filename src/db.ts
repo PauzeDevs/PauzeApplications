@@ -29,6 +29,10 @@ export interface ApplicationType {
   questions: string[];
   acceptanceRoleId: string | null;
   enabled: boolean;
+  acceptedMessage: string;
+  rejectedMessage: string;
+  holdMessage: string;
+  withdrawnMessage: string;
 }
 
 export interface ApplicationRecord {
@@ -69,6 +73,33 @@ export const db = new Database(databasePath);
 
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
+
+const applicationTypeColumns = db
+  .prepare('PRAGMA table_info(application_types)')
+  .all() as { name: string }[];
+
+const existingApplicationTypeColumns = new Set(
+  applicationTypeColumns.map(column => column.name),
+);
+
+const applicationTypeMigrations = [
+  ['accepted_message', "Your application {id} has been accepted. 🎉"],
+  ['rejected_message', "Your application {id} has been rejected."],
+  ['hold_message', "Your application {id} has been placed on hold. ⏳"],
+  ['withdrawn_message', "Your application {id} has been withdrawn. ⚪"],
+] as const;
+
+for (const [column, defaultValue] of applicationTypeMigrations) {
+  if (!existingApplicationTypeColumns.has(column)) {
+    db.prepare(
+      'ALTER TABLE application_types ADD COLUMN ' +
+      column +
+      " TEXT NOT NULL DEFAULT '" +
+      defaultValue.replace(/'/g, "''") +
+      "'",
+    ).run();
+  }
+}
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS guild_config (
@@ -227,6 +258,10 @@ export function getApplicationTypes(guildId: string): ApplicationType[] {
     questions: JSON.parse(row.questions_json),
     acceptanceRoleId: row.acceptance_role_id ? String(row.acceptance_role_id) : null,
     enabled: Boolean(row.enabled),
+    acceptedMessage: String(row.accepted_message ?? ''),
+    rejectedMessage: String(row.rejected_message ?? ''),
+    holdMessage: String(row.hold_message ?? ''),
+    withdrawnMessage: String(row.withdrawn_message ?? ''),
   }));
 }
 
@@ -250,6 +285,10 @@ export function getApplicationType(
     questions: JSON.parse(row.questions_json),
     acceptanceRoleId: row.acceptance_role_id ? String(row.acceptance_role_id) : null,
     enabled: Boolean(row.enabled),
+    acceptedMessage: String(row.accepted_message ?? ''),
+    rejectedMessage: String(row.rejected_message ?? ''),
+    holdMessage: String(row.hold_message ?? ''),
+    withdrawnMessage: String(row.withdrawn_message ?? ''),
   };
 }
 
@@ -452,6 +491,37 @@ export function updateApplication(
   `).run(status, reviewerId, notes, now(), id);
 
   return getApplication(id);
+}
+
+export type ApplicationMessageStatus =
+  | 'accepted'
+  | 'rejected'
+  | 'hold'
+  | 'withdrawn';
+
+export function setApplicationMessage(
+  guildId: string,
+  typeId: number,
+  status: ApplicationMessageStatus,
+  message: string,
+): boolean {
+  const columns: Record<ApplicationMessageStatus, string> = {
+    accepted: 'accepted_message',
+    rejected: 'rejected_message',
+    hold: 'hold_message',
+    withdrawn: 'withdrawn_message',
+  };
+
+  const type = getApplicationType(typeId, guildId);
+  if (!type) return false;
+
+  db.prepare(
+    'UPDATE application_types SET ' +
+    columns[status] +
+    ' = ? WHERE id = ? AND guild_id = ?',
+  ).run(message.trim(), typeId, guildId);
+
+  return true;
 }
 
 export function getApplicationStats(guildId: string): ApplicationStats {
