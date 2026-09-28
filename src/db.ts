@@ -74,33 +74,6 @@ export const db = new Database(databasePath);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
-const applicationTypeColumns = db
-  .prepare('PRAGMA table_info(application_types)')
-  .all() as { name: string }[];
-
-const existingApplicationTypeColumns = new Set(
-  applicationTypeColumns.map(column => column.name),
-);
-
-const applicationTypeMigrations = [
-  ['accepted_message', "Your application {id} has been accepted. 🎉"],
-  ['rejected_message', "Your application {id} has been rejected."],
-  ['hold_message', "Your application {id} has been placed on hold. ⏳"],
-  ['withdrawn_message', "Your application {id} has been withdrawn. ⚪"],
-] as const;
-
-for (const [column, defaultValue] of applicationTypeMigrations) {
-  if (!existingApplicationTypeColumns.has(column)) {
-    db.prepare(
-      'ALTER TABLE application_types ADD COLUMN ' +
-      column +
-      " TEXT NOT NULL DEFAULT '" +
-      defaultValue.replace(/'/g, "''") +
-      "'",
-    ).run();
-  }
-}
-
 db.exec(`
   CREATE TABLE IF NOT EXISTS guild_config (
     guild_id TEXT PRIMARY KEY,
@@ -154,6 +127,35 @@ db.exec(`
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
 `);
+
+const applicationTypeColumns = db
+  .prepare('PRAGMA table_info(application_types)')
+  .all() as { name: string }[];
+
+const existingApplicationTypeColumns = new Set(
+  applicationTypeColumns.map(column => column.name),
+);
+
+const applicationTypeMigrations = [
+  ['accepted_message', "Your application {id} has been accepted. 🎉"],
+  ['rejected_message', "Your application {id} has been rejected."],
+  ['hold_message', "Your application {id} has been placed on hold. ⏳"],
+  ['withdrawn_message', "Your application {id} has been withdrawn. ⚪"],
+] as const;
+
+for (const [column, defaultValue] of applicationTypeMigrations) {
+  if (!existingApplicationTypeColumns.has(column)) {
+    db.prepare(
+      'ALTER TABLE application_types ADD COLUMN ' +
+      column +
+      " TEXT NOT NULL DEFAULT '" +
+      defaultValue.replace(/'/g, "''") +
+      "'",
+    ).run();
+  }
+}
+
+
 
 const now = () => new Date().toISOString();
 
@@ -435,7 +437,7 @@ export function getReviewQueue(
           END,
           datetime(a.created_at) ASC,
           a.id ASC
-        LIMIT \${safeLimit}
+        LIMIT ${safeLimit}
       `).all(guildId) as any[];
 
   return rows.map(toSearchResult);
@@ -463,8 +465,8 @@ export function searchApplications(
         OR a.user_id = ?
       )
     ORDER BY datetime(a.created_at) DESC, a.id DESC
-    LIMIT \${safeLimit}
-  `).all(guildId, `%\${cleaned}%`, cleaned) as any[];
+    LIMIT ${safeLimit}
+  `).all(guildId, `%${cleaned}%`, cleaned) as any[];
 
   return rows.map(toSearchResult);
 }
@@ -539,6 +541,7 @@ export function getApplicationStats(guildId: string): ApplicationStats {
     hold: 0,
     accepted: 0,
     rejected: 0,
+    withdrawn: 0,
     archived: 0,
   };
 
