@@ -40,6 +40,7 @@ import {
   getApplicationAnalytics,
   getGuildConfig,
   setApplicationMessage,
+  setApplicationTypeEnabled,
   getLatestApplicationForUser,
   setGuildConfig,
   getReviewQueue,
@@ -904,7 +905,7 @@ async function handleApplicationCommand(
   // --------------------------------------------------------------------------
 
   if (
-    ["setup", "create", "panel", "list", "template"].includes(
+    ["setup", "create", "panel", "list", "template", "toggle"].includes(
       subcommand,
     ) &&
     !isManageGuild(interaction)
@@ -1084,6 +1085,75 @@ async function handleApplicationCommand(
     return;
   }
 
+  if (subcommand === "toggle") {
+    const typeId = Number(
+      interaction.options.getString("id", true),
+    );
+    const enabled = interaction.options.getBoolean(
+      "enabled",
+      true,
+    );
+
+    if (!Number.isInteger(typeId) || typeId <= 0) {
+      await interaction.reply({
+        content: "❌ Invalid application type ID.",
+        ephemeral: true,
+      });
+      return;
+    }
+
+    const type = getApplicationType(typeId, guildId);
+
+    if (!type) {
+      await interaction.reply({
+        content: "❌ That application type does not exist in this server.",
+        ephemeral: true,
+      });
+      return;
+    }
+
+    if (!setApplicationTypeEnabled(guildId, typeId, enabled)) {
+      await interaction.reply({
+        content: "❌ The application type could not be updated.",
+        ephemeral: true,
+      });
+      return;
+    }
+
+    await sendAudit(
+      guildId,
+      0,
+      interaction.user.id,
+      enabled ? "application_type_enabled" : "application_type_disabled",
+      type.name,
+    );
+
+    await interaction.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(enabled ? COLORS.success : COLORS.muted)
+          .setTitle(
+            enabled
+              ? "🟢 Application type enabled"
+              : "⚫ Application type disabled",
+          )
+          .setDescription(
+            [
+              "**" + type.name + "** is now ",
+              enabled ? "**available to applicants**." : "**hidden from applicants**.",
+              "",
+              "Existing applications and history are preserved.",
+            ].join("\n"),
+          )
+          .setFooter({
+            text: "Pauze Applications • Safe publishing control",
+          }),
+      ],
+      ephemeral: true,
+    });
+    return;
+  }
+
   if (subcommand === "template") {
     const typeId = Number(
       interaction.options.getString("id", true),
@@ -1193,7 +1263,7 @@ async function handleApplicationCommand(
     const description = types
       .map(type =>
         [
-          "**" + type.name + "**",
+          "**#" + type.id + " • " + type.name + "**",
           "> " +
             trimText(
               type.description,
