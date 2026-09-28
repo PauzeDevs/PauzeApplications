@@ -68,7 +68,7 @@ export const db = new Database(databasePath);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
-db.exec(\`
+db.exec(`
   CREATE TABLE IF NOT EXISTS guild_config (
     guild_id TEXT PRIMARY KEY,
     review_channel_id TEXT,
@@ -120,7 +120,7 @@ db.exec(\`
     details TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
-\`);
+`);
 
 const now = () => new Date().toISOString();
 
@@ -153,7 +153,7 @@ export function setGuildConfig(
   reviewerRoleId: string | null,
   logChannelId: string | null = null,
 ) {
-  db.prepare(\`
+  db.prepare(`
     INSERT INTO guild_config (
       guild_id,
       review_channel_id,
@@ -166,15 +166,15 @@ export function setGuildConfig(
       reviewer_role_id = excluded.reviewer_role_id,
       log_channel_id = excluded.log_channel_id,
       updated_at = CURRENT_TIMESTAMP
-  \`).run(guildId, reviewChannelId, reviewerRoleId, logChannelId);
+  `).run(guildId, reviewChannelId, reviewerRoleId, logChannelId);
 }
 
 export function getGuildConfig(guildId: string) {
-  return db.prepare(\`
+  return db.prepare(`
     SELECT guild_id, review_channel_id, reviewer_role_id, log_channel_id
     FROM guild_config
     WHERE guild_id = ?
-  \`).get(guildId) as {
+  `).get(guildId) as {
     guild_id: string;
     review_channel_id: string | null;
     reviewer_role_id: string | null;
@@ -189,7 +189,7 @@ export function createApplicationType(
   questions: string[],
   acceptanceRoleId: string | null,
 ) {
-  const result = db.prepare(\`
+  const result = db.prepare(`
     INSERT INTO application_types (
       guild_id,
       name,
@@ -198,7 +198,7 @@ export function createApplicationType(
       acceptance_role_id
     )
     VALUES (?, ?, ?, ?, ?)
-  \`).run(
+  `).run(
     guildId,
     name,
     description,
@@ -210,12 +210,12 @@ export function createApplicationType(
 }
 
 export function getApplicationTypes(guildId: string): ApplicationType[] {
-  const rows = db.prepare(\`
+  const rows = db.prepare(`
     SELECT *
     FROM application_types
     WHERE guild_id = ?
     ORDER BY id DESC
-  \`).all(guildId) as any[];
+  `).all(guildId) as any[];
 
   return rows.map(row => ({
     id: Number(row.id),
@@ -232,11 +232,11 @@ export function getApplicationType(
   id: number,
   guildId: string,
 ): ApplicationType | undefined {
-  const row = db.prepare(\`
+  const row = db.prepare(`
     SELECT *
     FROM application_types
     WHERE id = ? AND guild_id = ?
-  \`).get(id, guildId) as any;
+  `).get(id, guildId) as any;
 
   if (!row) return undefined;
 
@@ -256,7 +256,7 @@ export function hasActiveApplication(
   userId: string,
   typeId: number,
 ) {
-  const row = db.prepare(\`
+  const row = db.prepare(`
     SELECT id
     FROM applications
     WHERE guild_id = ?
@@ -264,7 +264,7 @@ export function hasActiveApplication(
       AND type_id = ?
       AND status IN ('pending', 'under_review', 'hold')
     LIMIT 1
-  \`).get(guildId, userId, typeId);
+  `).get(guildId, userId, typeId);
 
   return Boolean(row);
 }
@@ -275,10 +275,10 @@ export function createApplication(
   userId: string,
   answers: string[],
 ) {
-  const publicId = \`A-\${Date.now().toString(36).toUpperCase()}-\${randomUUID().slice(0, 6).toUpperCase()}\`;
+  const publicId = `A-\${Date.now().toString(36).toUpperCase()}-\${randomUUID().slice(0, 6).toUpperCase()}`;
   const timestamp = now();
 
-  const result = db.prepare(\`
+  const result = db.prepare(`
     INSERT INTO applications (
       public_id,
       guild_id,
@@ -289,7 +289,7 @@ export function createApplication(
       updated_at
     )
     VALUES (?, ?, ?, ?, ?, ?, ?)
-  \`).run(
+  `).run(
     publicId,
     guildId,
     typeId,
@@ -303,11 +303,11 @@ export function createApplication(
 }
 
 export function getApplication(id: number): ApplicationRecord | undefined {
-  const row = db.prepare(\`
+  const row = db.prepare(`
     SELECT *
     FROM applications
     WHERE id = ?
-  \`).get(id) as any;
+  `).get(id) as any;
 
   return row ? toApplication(row) : undefined;
 }
@@ -316,12 +316,12 @@ export function getApplicationByPublicId(
   guildId: string,
   publicId: string,
 ): ApplicationRecord | undefined {
-  const row = db.prepare(\`
+  const row = db.prepare(`
     SELECT *
     FROM applications
     WHERE guild_id = ? AND UPPER(public_id) = UPPER(?)
     LIMIT 1
-  \`).get(guildId, publicId.trim()) as any;
+  `).get(guildId, publicId.trim()) as any;
 
   return row ? toApplication(row) : undefined;
 }
@@ -330,13 +330,13 @@ export function getLatestApplicationForUser(
   guildId: string,
   userId: string,
 ): ApplicationRecord | undefined {
-  const row = db.prepare(\`
+  const row = db.prepare(`
     SELECT *
     FROM applications
     WHERE guild_id = ? AND user_id = ?
     ORDER BY datetime(created_at) DESC, id DESC
     LIMIT 1
-  \`).get(guildId, userId) as any;
+  `).get(guildId, userId) as any;
 
   return row ? toApplication(row) : undefined;
 }
@@ -348,13 +348,13 @@ export function getUserApplications(
 ): ApplicationRecord[] {
   const safeLimit = Math.min(Math.max(Math.floor(limit), 1), 25);
 
-  const rows = db.prepare(\`
+  const rows = db.prepare(`
     SELECT *
     FROM applications
     WHERE guild_id = ? AND user_id = ?
     ORDER BY datetime(created_at) DESC, id DESC
     LIMIT \${safeLimit}
-  \`).all(guildId, userId) as any[];
+  `).all(guildId, userId) as any[];
 
   return rows.map(toApplication);
 }
@@ -367,7 +367,7 @@ export function getReviewQueue(
   const safeLimit = Math.min(Math.max(Math.floor(limit), 1), 25);
 
   const rows = status
-    ? db.prepare(\`
+    ? db.prepare(`
         SELECT
           a.*,
           t.name AS type_name
@@ -376,8 +376,8 @@ export function getReviewQueue(
         WHERE a.guild_id = ? AND a.status = ?
         ORDER BY datetime(a.created_at) ASC, a.id ASC
         LIMIT \${safeLimit}
-      \`).all(guildId, status)
-    : db.prepare(\`
+      `).all(guildId, status)
+    : db.prepare(`
         SELECT
           a.*,
           t.name AS type_name
@@ -395,7 +395,7 @@ export function getReviewQueue(
           datetime(a.created_at) ASC,
           a.id ASC
         LIMIT \${safeLimit}
-      \`).all(guildId) as any[];
+      `).all(guildId) as any[];
 
   return rows.map(toSearchResult);
 }
@@ -410,7 +410,7 @@ export function searchApplications(
 
   if (!cleaned) return [];
 
-  const rows = db.prepare(\`
+  const rows = db.prepare(`
     SELECT
       a.*,
       t.name AS type_name
@@ -423,7 +423,7 @@ export function searchApplications(
       )
     ORDER BY datetime(a.created_at) DESC, a.id DESC
     LIMIT \${safeLimit}
-  \`).all(guildId, \`%\${cleaned}%\`, cleaned) as any[];
+  `).all(guildId, `%\${cleaned}%`, cleaned) as any[];
 
   return rows.map(toSearchResult);
 }
@@ -439,7 +439,7 @@ export function updateApplication(
   const reviewerId = patch.reviewerId ?? current.reviewerId;
   const notes = patch.notes ?? current.notes;
 
-  db.prepare(\`
+  db.prepare(`
     UPDATE applications
     SET
       status = ?,
@@ -447,18 +447,18 @@ export function updateApplication(
       notes = ?,
       updated_at = ?
     WHERE id = ?
-  \`).run(status, reviewerId, notes, now(), id);
+  `).run(status, reviewerId, notes, now(), id);
 
   return getApplication(id);
 }
 
 export function getApplicationStats(guildId: string): ApplicationStats {
-  const rows = db.prepare(\`
+  const rows = db.prepare(`
     SELECT status, COUNT(*) AS count
     FROM applications
     WHERE guild_id = ?
     GROUP BY status
-  \`).all(guildId) as { status: AppStatus; count: number }[];
+  `).all(guildId) as { status: AppStatus; count: number }[];
 
   const stats: ApplicationStats = {
     total: 0,
@@ -506,7 +506,7 @@ export function addAudit(
   action: string,
   details = '',
 ) {
-  db.prepare(\`
+  db.prepare(`
     INSERT INTO audit_logs (
       guild_id,
       application_id,
@@ -515,5 +515,5 @@ export function addAudit(
       details
     )
     VALUES (?, ?, ?, ?, ?)
-  \`).run(guildId, applicationId, actorId, action, details);
+  `).run(guildId, applicationId, actorId, action, details);
 }
