@@ -628,6 +628,50 @@ export function setApplicationMessage(
   return true;
 }
 
+export interface ApplicationAnalytics {
+  total: number;
+  active: number;
+  pending: number;
+  underReview: number;
+  hold: number;
+  accepted: number;
+  rejected: number;
+  withdrawn: number;
+  archived: number;
+  acceptanceRate: number;
+  decisionCount: number;
+}
+
+export function getApplicationAnalytics(
+  guildId: string,
+): ApplicationAnalytics {
+  const stats = getApplicationStats(guildId);
+  const decisionCount = stats.accepted + stats.rejected;
+  const acceptanceRate =
+    decisionCount === 0
+      ? 0
+      : Number(
+          ((stats.accepted / decisionCount) * 100).toFixed(1),
+        );
+
+  return {
+    total: stats.total,
+    active:
+      stats.pending +
+      stats.underReview +
+      stats.hold,
+    pending: stats.pending,
+    underReview: stats.underReview,
+    hold: stats.hold,
+    accepted: stats.accepted,
+    rejected: stats.rejected,
+    withdrawn: stats.withdrawn,
+    archived: stats.archived,
+    acceptanceRate,
+    decisionCount,
+  };
+}
+
 export function getApplicationStats(guildId: string): ApplicationStats {
   const rows = db.prepare(`
     SELECT status, COUNT(*) AS count
