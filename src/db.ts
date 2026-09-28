@@ -18,6 +18,7 @@ export type AppStatus =
   | 'hold'
   | 'accepted'
   | 'rejected'
+  | 'withdrawn'
   | 'archived';
 
 export interface ApplicationType {
@@ -55,6 +56,7 @@ export interface ApplicationStats {
   hold: number;
   accepted: number;
   rejected: number;
+  withdrawn: number;
   archived: number;
 }
 
@@ -375,7 +377,7 @@ export function getReviewQueue(
         INNER JOIN application_types t ON t.id = a.type_id
         WHERE a.guild_id = ? AND a.status = ?
         ORDER BY datetime(a.created_at) ASC, a.id ASC
-        LIMIT \${safeLimit}
+        LIMIT ${safeLimit}
       `).all(guildId, status)
     : db.prepare(`
         SELECT
@@ -489,6 +491,9 @@ export function getApplicationStats(guildId: string): ApplicationStats {
         break;
       case 'rejected':
         stats.rejected = count;
+        break;
+      case 'withdrawn':
+        stats.withdrawn = count;
         break;
       case 'archived':
         stats.archived = count;
