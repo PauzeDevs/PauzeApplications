@@ -275,7 +275,7 @@ export function createApplication(
   userId: string,
   answers: string[],
 ) {
-  const publicId = `A-\${Date.now().toString(36).toUpperCase()}-\${randomUUID().slice(0, 6).toUpperCase()}`;
+  const publicId = `A-${Date.now().toString(36).toUpperCase()}-${randomUUID().slice(0, 6).toUpperCase()}`;
   const timestamp = now();
 
   const result = db.prepare(`
@@ -353,7 +353,7 @@ export function getUserApplications(
     FROM applications
     WHERE guild_id = ? AND user_id = ?
     ORDER BY datetime(created_at) DESC, id DESC
-    LIMIT \${safeLimit}
+    LIMIT ${safeLimit}
   `).all(guildId, userId) as any[];
 
   return rows.map(toApplication);
