@@ -297,7 +297,7 @@ function applicationReviewEmbed(
   application: ApplicationRecord,
   typeName: string,
 ): EmbedBuilder {
-  return new EmbedBuilder()
+  const embed = new EmbedBuilder()
     .setColor(STATUS_COLORS[application.status])
     .setAuthor({
       name: "Pauze Applications",
@@ -330,6 +330,27 @@ function applicationReviewEmbed(
         "Pauze Applications • Staff review",
     })
     .setTimestamp(new Date(application.createdAt));
+
+  const type = getApplicationType(
+    application.typeId,
+    application.guildId,
+  );
+
+  if (type?.reviewMode === "vote") {
+    const votes = getApplicationVoteSummary(application.id);
+
+    embed.addFields({
+      name: "🗳️ Review Votes",
+      value: [
+        "🟢 Accept: **" + votes.accepted + "**",
+        "🔴 Reject: **" + votes.rejected + "**",
+        "🎯 Threshold: **" + type.approvalThreshold + "**",
+      ].join(" • "),
+      inline: false,
+    });
+  }
+
+  return embed;
 }
 
 function addAnswers(
@@ -1103,6 +1124,84 @@ async function handleApplicationCommand(
     return;
   }
 
+  if (subcommand === "voting") {
+    const typeId = Number(
+      interaction.options.getString("id", true),
+    );
+    const mode = interaction.options.getString(
+      "mode",
+      true,
+    ) as "single" | "vote";
+    const threshold = interaction.options.getInteger(
+      "threshold",
+      true,
+    );
+
+    if (!Number.isInteger(typeId) || typeId <= 0) {
+      await interaction.reply({
+        content: "❌ Invalid application type ID.",
+        ephemeral: true,
+      });
+      return;
+    }
+
+    const type = getApplicationType(typeId, guildId);
+
+    if (!type) {
+      await interaction.reply({
+        content: "❌ That application type does not exist in this server.",
+        ephemeral: true,
+      });
+      return;
+    }
+
+    if (mode === "single" && threshold !== 1) {
+      await interaction.reply({
+        content:
+          "❌ Single-reviewer mode must use a threshold of **1**.",
+        ephemeral: true,
+      });
+      return;
+    }
+
+    if (!setApplicationVoting(
+      guildId,
+      typeId,
+      mode,
+      threshold,
+    )) {
+      await interaction.reply({
+        content: "❌ Voting configuration could not be saved.",
+        ephemeral: true,
+      });
+      return;
+    }
+
+    await interaction.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(COLORS.success)
+          .setTitle("✅ Review mode updated")
+          .setDescription(
+            [
+              "**" + type.name + "**",
+              "",
+              mode === "vote"
+                ? "👥 Multi-reviewer voting is **enabled**."
+                : "👤 Single-reviewer decisions are **enabled**.",
+              "",
+              "🎯 Approval/rejection threshold: **" + threshold + "**",
+            ].join("\n"),
+          )
+          .setFooter({
+            text: "Pauze Applications • Review configuration",
+          }),
+      ],
+      ephemeral: true,
+    });
+    return;
+  }
+
   if (subcommand === "toggle") {
     const typeId = Number(
       interaction.options.getString("id", true),
@@ -1684,6 +1783,20 @@ async function handleApplicationCommand(
       });
       return;
     }
+    const type = getApplicationType(
+      application.typeId,
+      application.guildId,
+    );
+
+    if (type?.reviewMode === "vote") {
+      await interaction.reply({
+        content:
+          "🗳️ This application uses multi-reviewer voting. Use /application vote instead of a direct decision.",
+        ephemeral: true,
+      });
+      return;
+    }
+
 
     const type =
       getApplicationType(
@@ -1718,6 +1831,165 @@ async function handleApplicationCommand(
             application.status,
           ),
         ),
+      ],
+      ephemeral: true,
+    });
+    return;
+  }
+
+  if (subcommand === "vote") {
+    const reference = interaction.options.getString("id", true);
+    const vote = interaction.options.getString(
+      "vote",
+      true,
+    ) as ApplicationVote;
+
+    const application = resolveApplication(guildId, reference);
+
+    if (!application) {
+      await interaction.reply({
+        content: "❌ Application not found.",
+        ephemeral: true,
+      });
+      return;
+    }
+
+    const type = getApplicationType(
+      application.typeId,
+      guildId,
+    );
+
+    if (type?.reviewMode !== "vote") {
+      await interaction.reply({
+        content:
+          "❌ Voting is not enabled for this application type.",
+        ephemeral: true,
+      });
+      return;
+    }
+
+    if (
+      vote !== "accepted" &&
+      vote !== "rejected"
+    ) {
+      await interaction.reply({
+        content: "❌ Invalid vote.",
+        ephemeral: true,
+      });
+      return;
+    }
+
+    if (!ACTIVE_STATUSES.includes(application.status)) {
+      await interaction.reply({
+        content: "⚠️ Voting is closed for this application.",
+        ephemeral: true,
+      });
+      return;
+    }
+
+    recordApplicationVote(
+      application.id,
+      interaction.user.id,
+      vote,
+    );
+
+    const summary = getApplicationVoteSummary(application.id);
+    const reached =
+      summary.accepted >= type.approvalThreshold ||
+      summary.rejected >= type.approvalThreshold;
+
+    if (reached) {
+      const finalStatus: AppStatus =
+        summary.accepted >= type.approvalThreshold
+          ? "accepted"
+          : "rejected";
+
+      const updated = transitionApplication(
+        application.id,
+        finalStatus,
+        interaction.user.id,
+      );
+
+      if (!updated) {
+        await interaction.reply({
+          content: "❌ The vote was saved, but the final decision could not be completed.",
+          ephemeral: true,
+        });
+        return;
+      }
+
+      if (finalStatus === "accepted") {
+        await assignAcceptanceRole(updated);
+      }
+
+      await sendAudit(
+        guildId,
+        updated.id,
+        interaction.user.id,
+        finalStatus,
+        "Voting threshold reached: " +
+          summary.accepted +
+          " accept / " +
+          summary.rejected +
+          " reject.",
+      );
+
+      await notifyApplicant(updated, finalStatus);
+
+      await interaction.reply({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(STATUS_COLORS[finalStatus])
+            .setTitle(
+              finalStatus === "accepted"
+                ? "🟢 Application accepted"
+                : "🔴 Application rejected",
+            )
+            .setDescription(
+              "The vote threshold has been reached for **" +
+                updated.publicId +
+                "**.",
+            )
+            .setFooter({
+              text:
+                "Pauze Applications • Final decision recorded",
+            }),
+        ],
+        ephemeral: true,
+      });
+
+      return;
+    }
+
+    await sendAudit(
+      guildId,
+      application.id,
+      interaction.user.id,
+      "vote_recorded",
+      "Vote: " + vote + " • " +
+        summary.accepted + " accept / " +
+        summary.rejected + " reject.",
+    );
+
+    await interaction.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(COLORS.brand)
+          .setTitle("🗳️ Vote recorded")
+          .setDescription(
+            [
+              "**" + application.publicId + "**",
+              "",
+              "Your vote has been saved.",
+              "",
+              "🟢 Accept: **" + summary.accepted + "**",
+              "🔴 Reject: **" + summary.rejected + "**",
+              "🎯 Threshold: **" + type.approvalThreshold + "**",
+            ].join("\n"),
+          )
+          .setFooter({
+            text: "Pauze Applications • Reviewer vote",
+          }),
       ],
       ephemeral: true,
     });
