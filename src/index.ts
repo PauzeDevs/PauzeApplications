@@ -2857,7 +2857,7 @@ async function handleApplicationSubmit(
           .setLabel("Back")
           .setEmoji("◀️")
           .setStyle(ButtonStyle.Secondary)
-          .setDisabled(page === 0),
+          .setDisabled(false),
         new ButtonBuilder()
           .setCustomId(
             "app:form:next:" +
