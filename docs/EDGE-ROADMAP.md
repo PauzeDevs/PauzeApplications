@@ -1,3 +1,5 @@
+Copyright (c) 2026 Aarav Singh / PauzeDevs
+
 # Pauze Applications — Edge Roadmap
 
 Pauze Applications is being designed as a full Discord-native application workflow, not just a questionnaire.
