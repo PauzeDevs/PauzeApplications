@@ -40,7 +40,6 @@ const BRAND = 0x5865f2;
 const SUCCESS = 0x57f287;
 const DANGER = 0xed4245;
 const WARNING = 0xfee75c;
-const MUTED = 0x2b2d31;
 
 const statusLabel: Record<string, string> = {
   pending: '🟡 Pending',
@@ -61,16 +60,16 @@ function reviewButtons(id: number, disabled = false) {
   );
 }
 
-function applicationPanel(type: ReturnType<typeof getApplicationType>) {
+function applicationPanel() {
   return new EmbedBuilder()
     .setColor(BRAND)
     .setAuthor({ name: 'Pauze Applications', iconURL: client.user?.displayAvatarURL() })
-    .setTitle(`📋 ${type?.name ?? 'Application'}`)
-    .setDescription(type?.description ?? 'Submit an application below.')
+    .setTitle('📋 Applications')
+    .setDescription('Choose an application below to get started. Your answers are private and are only sent to the configured review team.')
     .addFields(
-      { name: '📝 Application', value: `${type?.questions.length ?? 0} question(s)`, inline: true },
-      { name: '⏱️ Time', value: 'A few minutes', inline: true },
-      { name: '🔒 Privacy', value: 'Staff review only', inline: true },
+      { name: '📝 Simple', value: 'Fill out a short Discord form.', inline: true },
+      { name: '🔒 Private', value: 'Only authorized reviewers see submissions.', inline: true },
+      { name: '⚡ Fast', value: 'Submit directly from Discord.', inline: true },
     )
     .setFooter({ text: 'Pauze Applications • Applications, without the clutter.' });
 }
@@ -137,11 +136,14 @@ async function updateReviewMessage(interaction: any, application: any, status: s
     .setFooter({ text: `Pauze Applications • ${statusLabel[status] ?? status}` });
 
   const description = embed.data.description ?? '';
-  embed.setDescription(description.replace(/\*\*Status:\*\* .*?(?=\n|$)/, `**Status:** ${statusLabel[status] ?? status}`));
+  const nextDescription = /\*\*Status:\*\*/.test(description)
+    ? description.replace(/\*\*Status:\*\* .*?(?=\n|$)/, `**Status:** ${statusLabel[status] ?? status}`)
+    : `${description}\n**Status:** ${statusLabel[status] ?? status}`;
+  embed.setDescription(nextDescription);
   await interaction.update({ embeds: [embed], components: [reviewButtons(application.id, disabled)] });
 }
 
-client.once(Events.ClientReady, async c => {
+client.once(Events.ClientReady, c => {
   console.log(`Pauze Applications online as ${c.user.tag}`);
 });
 
@@ -155,38 +157,18 @@ client.on(Events.InteractionCreate, async interaction => {
         const review = interaction.options.getChannel('review_channel', true);
         const reviewer = interaction.options.getRole('reviewer_role', true);
         const log = interaction.options.getChannel('log_channel', false);
-        if (![ChannelType.GuildText, ChannelType.GuildAnnouncement].includes(review.type)) {
-          return interaction.reply({ content: '❌ Review channel must be a text-based channel.', ephemeral: true });
-        }
-        if (log && ![ChannelType.GuildText, ChannelType.GuildAnnouncement].includes(log.type)) {
-          return interaction.reply({ content: '❌ Log channel must be a text-based channel.', ephemeral: true });
-        }
+        if (![ChannelType.GuildText, ChannelType.GuildAnnouncement].includes(review.type)) return interaction.reply({ content: '❌ Review channel must be a text-based channel.', ephemeral: true });
+        if (log && ![ChannelType.GuildText, ChannelType.GuildAnnouncement].includes(log.type)) return interaction.reply({ content: '❌ Log channel must be a text-based channel.', ephemeral: true });
         setGuildConfig(interaction.guild.id, review.id, reviewer.id, log?.id ?? null);
-        return interaction.reply({
-          embeds: [new EmbedBuilder().setColor(SUCCESS).setTitle('⚙️ Applications configured').setDescription(
-            `**Review channel**\n<#${review.id}>\n\n**Reviewer role**\n<@&${reviewer.id}>${log ? `\n\n**Audit log**\n<#${log.id}>` : ''}`,
-          ).setFooter({ text: 'Pauze Applications • Configuration saved.' })],
-          ephemeral: true,
-        });
+        return interaction.reply({ embeds: [new EmbedBuilder().setColor(SUCCESS).setTitle('⚙️ Applications configured').setDescription(`**Review channel**\n<#${review.id}>\n\n**Reviewer role**\n<@&${reviewer.id}>${log ? `\n\n**Audit log**\n<#${log.id}>` : ''}`).setFooter({ text: 'Pauze Applications • Configuration saved.' })], ephemeral: true });
       }
 
       if (sub === 'create') {
-        const questions = [1, 2, 3, 4, 5]
-          .map(n => interaction.options.getString(`question_${n}`))
-          .filter((q): q is string => Boolean(q));
+        const questions = [1, 2, 3, 4, 5].map(n => interaction.options.getString(`question_${n}`)).filter((q): q is string => Boolean(q));
         try {
           const name = interaction.options.getString('name', true);
-          const id = createApplicationType(
-            interaction.guild.id,
-            name,
-            interaction.options.getString('description', true),
-            questions,
-            interaction.options.getRole('acceptance_role', false)?.id ?? null,
-          );
-          return interaction.reply({
-            embeds: [new EmbedBuilder().setColor(SUCCESS).setTitle('Application created').setDescription(`**${name}** is ready.\n\nUse \`/application panel\` to publish the application panel.`).setFooter({ text: `Application type #${id}` })],
-            ephemeral: true,
-          });
+          const id = createApplicationType(interaction.guild.id, name, interaction.options.getString('description', true), questions, interaction.options.getRole('acceptance_role', false)?.id ?? null);
+          return interaction.reply({ embeds: [new EmbedBuilder().setColor(SUCCESS).setTitle('Application created').setDescription(`**${name}** is ready.\n\nUse \`/application panel\` to publish the application panel.`).setFooter({ text: `Application type #${id}` })], ephemeral: true });
         } catch {
           return interaction.reply({ content: '❌ An application type with that name already exists.', ephemeral: true });
         }
@@ -195,11 +177,7 @@ client.on(Events.InteractionCreate, async interaction => {
       if (sub === 'list') {
         const types = getApplicationTypes(interaction.guild.id);
         if (!types.length) return interaction.reply({ content: 'No application types exist yet. Use `/application create`.', ephemeral: true });
-        const embed = new EmbedBuilder()
-          .setColor(BRAND)
-          .setTitle('📋 Application Types')
-          .setDescription(types.map(t => `**${t.name}**\n\`${t.questions.length} question(s)\` • ${t.enabled ? '🟢 Enabled' : '⚫ Disabled'}`).join('\n\n'))
-          .setFooter({ text: `${types.length} application type(s)` });
+        const embed = new EmbedBuilder().setColor(BRAND).setTitle('📋 Application Types').setDescription(types.map(t => `**${t.name}**\n\`${t.questions.length} question(s)\` • ${t.enabled ? '🟢 Enabled' : '⚫ Disabled'}`).join('\n\n')).setFooter({ text: `${types.length} application type(s)` });
         return interaction.reply({ embeds: [embed], ephemeral: true });
       }
 
@@ -208,18 +186,10 @@ client.on(Events.InteractionCreate, async interaction => {
         if (!types.length) return interaction.reply({ content: '❌ Create an application type first with `/application create`.', ephemeral: true });
         if (!interaction.channel?.isTextBased()) return interaction.reply({ content: '❌ This channel cannot receive application panels.', ephemeral: true });
 
-        const menu = new StringSelectMenuBuilder()
-          .setCustomId('app:type')
-          .setPlaceholder('Select an application to begin');
-        for (const type of types.slice(0, 25)) {
-          menu.addOptions(new StringSelectMenuOptionBuilder()
-            .setLabel(type.name.slice(0, 100))
-            .setDescription(type.description.slice(0, 100))
-            .setValue(String(type.id)));
-        }
-
+        const menu = new StringSelectMenuBuilder().setCustomId('app:type').setPlaceholder('Select an application to begin');
+        for (const type of types.slice(0, 25)) menu.addOptions(new StringSelectMenuOptionBuilder().setLabel(type.name.slice(0, 100)).setDescription(type.description.slice(0, 100)).setValue(String(type.id)));
         const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu);
-        await interaction.channel.send({ embeds: [applicationPanel(types[0])], components: [row] });
+        await interaction.channel.send({ embeds: [applicationPanel()], components: [row] });
         return interaction.reply({ content: '✅ Application panel published.', ephemeral: true });
       }
     }
@@ -231,14 +201,7 @@ client.on(Events.InteractionCreate, async interaction => {
       if (type.questions.length === 0 || type.questions.length > 5) return interaction.reply({ content: '❌ This application has an invalid question configuration.', ephemeral: true });
 
       const modal = new ModalBuilder().setCustomId(`app:submit:${type.id}`).setTitle(type.name.slice(0, 45));
-      const rows = type.questions.map((question, index) => new ActionRowBuilder<TextInputBuilder>().addComponents(
-        new TextInputBuilder()
-          .setCustomId(`q${index}`)
-          .setLabel(question.slice(0, 45))
-          .setStyle(TextInputStyle.Paragraph)
-          .setRequired(true)
-          .setMaxLength(1000),
-      ));
+      const rows = type.questions.map((question, index) => new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId(`q${index}`).setLabel(question.slice(0, 45)).setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(1000)));
       modal.addComponents(...rows);
       return interaction.showModal(modal);
     }
@@ -256,9 +219,7 @@ client.on(Events.InteractionCreate, async interaction => {
 
       const config = getGuildConfig(interaction.guild.id);
       const reviewChannel = config?.review_channel_id ? await interaction.guild.channels.fetch(config.review_channel_id).catch(() => null) : null;
-      if (!reviewChannel || !reviewChannel.isTextBased()) {
-        return interaction.reply({ content: `✅ Submitted as **${application.publicId}**, but staff review is not configured yet.`, ephemeral: true });
-      }
+      if (!reviewChannel || !reviewChannel.isTextBased()) return interaction.reply({ content: `✅ Submitted as **${application.publicId}**, but staff review is not configured yet.`, ephemeral: true });
 
       const embed = new EmbedBuilder()
         .setColor(BRAND)
@@ -270,10 +231,7 @@ client.on(Events.InteractionCreate, async interaction => {
         .setFooter({ text: 'Pauze Applications • Staff review' });
 
       await reviewChannel.send({ embeds: [embed], components: [reviewButtons(application.id)] });
-      return interaction.reply({
-        embeds: [new EmbedBuilder().setColor(SUCCESS).setTitle('Application submitted').setDescription(`Your application **${application.publicId}** has been sent to the review team.\n\nYou will receive a DM when its status changes.`)],
-        ephemeral: true,
-      });
+      return interaction.reply({ embeds: [new EmbedBuilder().setColor(SUCCESS).setTitle('Application submitted').setDescription(`Your application **${application.publicId}** has been sent to the review team.\n\nYou will receive a DM when its status changes.`)], ephemeral: true });
     }
 
     if (interaction.isButton() && interaction.customId.startsWith('app:')) {
@@ -285,9 +243,7 @@ client.on(Events.InteractionCreate, async interaction => {
 
       if (action === 'notes') {
         const modal = new ModalBuilder().setCustomId(`app:notes:${id}`).setTitle(`Notes • ${application.publicId}`);
-        modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(
-          new TextInputBuilder().setCustomId('notes').setLabel('Internal reviewer notes').setStyle(TextInputStyle.Paragraph).setRequired(false).setMaxLength(2000).setValue(application.notes.slice(0, 2000)),
-        ));
+        modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId('notes').setLabel('Internal reviewer notes').setStyle(TextInputStyle.Paragraph).setRequired(false).setMaxLength(2000).setValue(application.notes.slice(0, 2000))));
         return interaction.showModal(modal);
       }
 
@@ -333,9 +289,7 @@ client.on(Events.InteractionCreate, async interaction => {
     }
   } catch (error) {
     console.error('[Pauze Applications]', error);
-    if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
-      await interaction.reply({ content: '❌ Something went wrong while processing that action.', ephemeral: true }).catch(() => null);
-    }
+    if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) await interaction.reply({ content: '❌ Something went wrong while processing that action.', ephemeral: true }).catch(() => null);
   }
 });
 
