@@ -1,3 +1,5 @@
+Copyright (c) 2026 Aarav Singh / PauzeDevs
+
 # Changelog
 
 All notable changes to Pauze Applications are documented here.
