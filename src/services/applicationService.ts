@@ -21,6 +21,7 @@ import {
 export const FINAL_STATUSES: readonly AppStatus[] = [
   'accepted',
   'rejected',
+  'withdrawn',
   'archived',
 ];
 
