@@ -1783,21 +1783,6 @@ async function handleApplicationCommand(
       });
       return;
     }
-    const type = getApplicationType(
-      application.typeId,
-      application.guildId,
-    );
-
-    if (type?.reviewMode === "vote") {
-      await interaction.reply({
-        content:
-          "🗳️ This application uses multi-reviewer voting. Use /application vote instead of a direct decision.",
-        ephemeral: true,
-      });
-      return;
-    }
-
-
     const type =
       getApplicationType(
         application.typeId,
