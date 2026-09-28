@@ -190,6 +190,29 @@ const application = new SlashCommandBuilder()
     .setDescription('Publish the application selection panel'))
   .addSubcommand(sub => sub
     .setName('list')
-    .setDescription('List application types'));
+    .setDescription('List application types'))
+  .addSubcommand(sub => sub
+    .setName('template')
+    .setDescription('Configure an applicant notification template')
+    .addStringOption(option => option
+      .setName('id')
+      .setDescription('Application type ID')
+      .setRequired(true)
+      .setMaxLength(20))
+    .addStringOption(option => option
+      .setName('status')
+      .setDescription('Status this template is used for')
+      .setRequired(true)
+      .addChoices(
+        { name: '🟢 Accepted', value: 'accepted' },
+        { name: '🔴 Rejected', value: 'rejected' },
+        { name: '⏳ On Hold', value: 'hold' },
+        { name: '⚪ Withdrawn', value: 'withdrawn' },
+      ))
+    .addStringOption(option => option
+      .setName('message')
+      .setDescription('Message template; supports {id}, {type}, {user}, {status}')
+      .setRequired(true)
+      .setMaxLength(2000)));
 
 export const applicationCommand = application;
