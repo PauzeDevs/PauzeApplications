@@ -37,6 +37,7 @@ import {
   getApplicationByPublicId,
   getApplicationType,
   getApplicationTypes,
+  getApplicationAnalytics,
   getGuildConfig,
   getLatestApplicationForUser,
   setGuildConfig,
@@ -85,6 +86,7 @@ const STATUS_LABELS: Record<AppStatus, string> = {
   hold: "⏳ On Hold",
   accepted: "🟢 Accepted",
   rejected: "🔴 Rejected",
+  withdrawn: "⚪ Withdrawn",
   archived: "⚫ Archived",
 };
 
@@ -94,6 +96,7 @@ const STATUS_COLORS: Record<AppStatus, number> = {
   hold: COLORS.warning,
   accepted: COLORS.success,
   rejected: COLORS.danger,
+  withdrawn: COLORS.muted,
   archived: COLORS.muted,
 };
 
@@ -729,6 +732,67 @@ async function handleApplicationCommand(
     return;
   }
 
+  if (subcommand === "withdraw") {
+    const reference = interaction.options.getString("id", true);
+    const application = resolveApplication(guildId, reference);
+
+    if (!application || application.userId !== interaction.user.id) {
+      await interaction.reply({
+        content: "❌ That application could not be found.",
+        ephemeral: true,
+      });
+      return;
+    }
+
+    if (!ACTIVE_STATUSES.includes(application.status)) {
+      await interaction.reply({
+        content:
+          "⚠️ Only **Pending**, **Under Review**, or **On Hold** applications can be withdrawn.",
+        ephemeral: true,
+      });
+      return;
+    }
+
+    const withdrawn = transitionApplication(
+      application.id,
+      "withdrawn",
+      application.reviewerId,
+    );
+
+    if (!withdrawn) {
+      await interaction.reply({
+        content: "❌ The application could not be withdrawn.",
+        ephemeral: true,
+      });
+      return;
+    }
+
+    await sendAudit(
+      guildId,
+      withdrawn.id,
+      interaction.user.id,
+      "withdrawn",
+    );
+
+    await notifyApplicant(withdrawn, "withdrawn");
+
+    await interaction.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(COLORS.muted)
+          .setTitle("⚪ Application withdrawn")
+          .setDescription(
+            "Application **" + withdrawn.publicId + "** has been withdrawn successfully.",
+          )
+          .setFooter({
+            text: "Pauze Applications • You may submit again later.",
+          }),
+      ],
+      ephemeral: true,
+    });
+    return;
+  }
+
   if (subcommand === "history") {
     const applications =
       getUserApplications(
@@ -1126,12 +1190,90 @@ async function handleApplicationCommand(
       "assign",
       "archive",
       "note",
+      "analytics",
     ].includes(subcommand) &&
     !isReviewerMember(interaction)
   ) {
     await interaction.reply({
       content:
         "❌ You need the configured reviewer role or Administrator permission.",
+      ephemeral: true,
+    });
+    return;
+  }
+
+  if (subcommand === "analytics") {
+    const analytics = getApplicationAnalytics(guildId);
+
+    const percent = analytics.acceptanceRate.toFixed(1) + "%";
+
+    await interaction.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(COLORS.brand)
+          .setAuthor({
+            name: "Pauze Applications",
+            iconURL: client.user?.displayAvatarURL(),
+          })
+          .setTitle("📊 Application Analytics")
+          .setDescription(
+            "A live snapshot of application volume and review state for this server.",
+          )
+          .addFields(
+            {
+              name: "📦 Total",
+              value: String(analytics.total),
+              inline: true,
+            },
+            {
+              name: "🔥 Active",
+              value: String(analytics.active),
+              inline: true,
+            },
+            {
+              name: "🟢 Acceptance Rate",
+              value: percent,
+              inline: true,
+            },
+            {
+              name: "🟡 Pending",
+              value: String(analytics.pending),
+              inline: true,
+            },
+            {
+              name: "🔵 Under Review",
+              value: String(analytics.underReview),
+              inline: true,
+            },
+            {
+              name: "⏳ On Hold",
+              value: String(analytics.hold),
+              inline: true,
+            },
+            {
+              name: "🟢 Accepted",
+              value: String(analytics.accepted),
+              inline: true,
+            },
+            {
+              name: "🔴 Rejected",
+              value: String(analytics.rejected),
+              inline: true,
+            },
+            {
+              name: "⚪ Withdrawn",
+              value: String(analytics.withdrawn),
+              inline: true,
+            },
+          )
+          .setFooter({
+            text:
+              "Pauze Applications • " +
+              analytics.decisionCount +
+              " finalized decisions counted",
+          })
+          .setTimestamp(),
+      ],
       ephemeral: true,
     });
     return;
@@ -1847,8 +1989,8 @@ async function handleSelectMenu(
   interaction: any,
 ): Promise<void> {
   if (
-    interaction.customId !==
-    "app:type"
+    interaction.customId !== "app:type" &&
+    interaction.customId !== "application:apply"
   ) {
     return;
   }
