@@ -50,6 +50,7 @@ export function canTransition(from: AppStatus, to: AppStatus): boolean {
     hold: ['pending', 'under_review', 'accepted', 'rejected', 'archived'],
     accepted: ['archived'],
     rejected: ['archived'],
+    withdrawn: ['archived'],
     archived: [],
   };
 
