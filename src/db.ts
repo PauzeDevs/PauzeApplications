@@ -495,6 +495,18 @@ export function updateApplication(
   return getApplication(id);
 }
 
+export function setApplicationTypeEnabled(
+  guildId: string,
+  typeId: number,
+  enabled: boolean,
+): boolean {
+  const result = db.prepare(
+    'UPDATE application_types SET enabled = ? WHERE id = ? AND guild_id = ?',
+  ).run(enabled ? 1 : 0, typeId, guildId);
+
+  return result.changes > 0;
+}
+
 export type ApplicationMessageStatus =
   | 'accepted'
   | 'rejected'
