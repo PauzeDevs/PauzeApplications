@@ -1,7 +1,7 @@
 {
   "name": "pauze-applications",
-  "version": "1.1.0",
-  "description": "Clean, modular Discord application management by PauzeDevs.",
+  "version": "1.2.0",
+  "description": "Production-ready Discord application management by PauzeDevs with native forms, review workflows, automation foundations, and a polished UI.",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
