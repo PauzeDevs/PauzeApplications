@@ -39,6 +39,7 @@ import {
   getApplicationTypes,
   getApplicationAnalytics,
   getGuildConfig,
+  setApplicationMessage,
   getLatestApplicationForUser,
   setGuildConfig,
   getReviewQueue,
@@ -49,6 +50,7 @@ import {
 } from "./db.js";
 import type {
   AppStatus,
+  ApplicationMessageStatus,
   ApplicationRecord,
 } from "./db.js";
 import {
@@ -445,6 +447,25 @@ async function sendAudit(
     .catch(() => null);
 }
 
+function renderNotificationTemplate(
+  template: string,
+  application: ApplicationRecord,
+  typeName: string,
+  status: AppStatus,
+): string {
+  const values: Record<string, string> = {
+    id: application.publicId,
+    type: typeName,
+    user: "<@" + application.userId + ">",
+    status: STATUS_LABELS[status],
+  };
+
+  return template.replace(
+    /\{(id|type|user|status)\}/g,
+    (_, key: string) => values[key] ?? "",
+  );
+}
+
 async function notifyApplicant(
   application: ApplicationRecord,
   status: AppStatus,
@@ -470,11 +491,20 @@ async function notifyApplicant(
           application.publicId,
       )
       .setDescription(
-        "Your **" +
-          (type?.name ?? "application") +
-          "** is now **" +
-          STATUS_LABELS[status] +
-          "**.",
+        renderNotificationTemplate(
+          status === "accepted"
+            ? type?.acceptedMessage ?? "Your application {id} has been accepted. 🎉"
+            : status === "rejected"
+              ? type?.rejectedMessage ?? "Your application {id} has been rejected."
+              : status === "hold"
+                ? type?.holdMessage ?? "Your application {id} has been placed on hold. ⏳"
+                : status === "withdrawn"
+                  ? type?.withdrawnMessage ?? "Your application {id} has been withdrawn. ⚪"
+                  : "Your application {id} is now {status}.",
+          application,
+          type?.name ?? "Application",
+          status,
+        ),
       )
       .setTimestamp()
       .setFooter({
@@ -874,7 +904,7 @@ async function handleApplicationCommand(
   // --------------------------------------------------------------------------
 
   if (
-    ["setup", "create", "panel", "list"].includes(
+    ["setup", "create", "panel", "list", "template"].includes(
       subcommand,
     ) &&
     !isManageGuild(interaction)
@@ -1051,6 +1081,99 @@ async function handleApplicationCommand(
         ephemeral: true,
       });
     }
+    return;
+  }
+
+  if (subcommand === "template") {
+    const typeId = Number(
+      interaction.options.getString("id", true),
+    );
+    const status = interaction.options.getString(
+      "status",
+      true,
+    ) as ApplicationMessageStatus;
+    const message = interaction.options.getString(
+      "message",
+      true,
+    );
+
+    if (!Number.isInteger(typeId) || typeId <= 0) {
+      await interaction.reply({
+        content: "❌ Invalid application type ID.",
+        ephemeral: true,
+      });
+      return;
+    }
+
+    const type = getApplicationType(typeId, guildId);
+
+    if (!type) {
+      await interaction.reply({
+        content: "❌ That application type does not exist in this server.",
+        ephemeral: true,
+      });
+      return;
+    }
+
+    if (!message.trim()) {
+      await interaction.reply({
+        content: "❌ The notification template cannot be empty.",
+        ephemeral: true,
+      });
+      return;
+    }
+
+    if (!setApplicationMessage(guildId, typeId, status, message)) {
+      await interaction.reply({
+        content: "❌ The notification template could not be saved.",
+        ephemeral: true,
+      });
+      return;
+    }
+
+    const previewApplication: ApplicationRecord = {
+      id: 0,
+      publicId: "A-DEMO-123ABC",
+      guildId,
+      typeId,
+      userId: interaction.user.id,
+      answers: [],
+      status,
+      reviewerId: null,
+      notes: "",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const preview = renderNotificationTemplate(
+      message,
+      previewApplication,
+      type.name,
+      status,
+    );
+
+    await interaction.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(STATUS_COLORS[status])
+          .setTitle("✅ Notification template saved")
+          .setDescription(
+            [
+              "**Application type:** " + type.name,
+              "**Status:** " + STATUS_LABELS[status],
+              "",
+              "**Preview**",
+              preview,
+              "",
+              "Supported placeholders: {id}, {type}, {user}, {status}",
+            ].join("\n"),
+          )
+          .setFooter({
+            text: "Pauze Applications • Template configuration",
+          }),
+      ],
+      ephemeral: true,
+    });
     return;
   }
 
