@@ -35,6 +35,21 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Verify source attribution
+        shell: bash
+        run: |
+          missing=0
+          while IFS= read -r -d '' file; do
+            if ! grep -Fq "Copyright (c) 2026 Aarav Singh / PauzeDevs" "$file"; then
+              echo "Missing Pauze copyright header: $file"
+              missing=1
+            fi
+          done < <(find src -type f -name "*.ts" -print0)
+
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
       - name: Type-check
         run: npm run typecheck
 
