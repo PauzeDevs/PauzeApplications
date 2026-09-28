@@ -192,6 +192,19 @@ const application = new SlashCommandBuilder()
     .setName('list')
     .setDescription('List application types'))
   .addSubcommand(sub => sub
+    .setName('toggle')
+    .setDescription('Enable or disable an application type')
+    .addStringOption(option => option
+      .setName('id')
+      .setDescription('Application type ID')
+      .setRequired(true)
+      .setMaxLength(20))
+    .addBooleanOption(option => option
+      .setName('enabled')
+      .setDescription('Whether applicants can submit this form')
+      .setRequired(true)))
+
+  .addSubcommand(sub => sub
     .setName('template')
     .setDescription('Configure an applicant notification template')
     .addStringOption(option => option
