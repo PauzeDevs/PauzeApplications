@@ -2,31 +2,57 @@
 
 A clean, modular Discord application-management bot inspired by the familiar workflow of established application bots, with a polished PauzeX-style interface.
 
+> **Pauze Applications — applications, without the clutter.**
+
 ## Status
 
 **Version:** `1.0.0` · **License:** MIT · **Runtime:** Node.js 20+
 
-### Included in v1.0.0
+The current `main` branch contains the initial working release foundation plus UI/review-flow improvements. It is suitable for development/testing; production deployment should be tested against the target server first.
 
-- `/application create` — create an application type with a title, description and up to five initial questions.
-- `/application panel` — publish a clean application panel in the current channel.
-- `/application list` — inspect configured application types.
-- `/application setup` — configure the review channel and reviewer role.
-- Modal-based application submission.
-- Persistent SQLite storage.
+## Features
+
+### Applicant experience
+
+- Clean application panel with a Discord select menu.
+- Modal-based application forms.
+- Up to five required questions per application type.
 - Unique application IDs.
-- Staff review buttons: **Accept**, **Reject**, **Hold**, **Claim** and **Notes**.
-- Applicant DMs for review decisions when DMs are available.
-- Automatic acceptance role support.
-- Review and audit logs.
 - Duplicate active-application protection.
+- Private submission confirmation.
+- Applicant DM notifications when status changes.
+
+### Staff experience
+
+- Dedicated review channel.
+- Reviewer-role access control.
+- Administrator override.
+- Clean review embeds.
+- **Accept**, **Reject**, **Hold**, **Claim** and **Notes** actions.
+- Reviewer claiming and ownership tracking.
+- Internal reviewer notes.
+- Automatic acceptance roles.
+- Disabled review controls after a final decision.
+
+### Administration
+
 - Per-guild configuration.
+- Multiple application types.
+- Application descriptions and custom questions.
+- Optional acceptance role per application type.
+- Optional audit-log channel.
+- Persistent SQLite database.
+- Audit events for submissions and staff actions.
+- Local-first data storage with no third-party application-data service required.
 
 ## Requirements
 
-- Node.js `20` or newer
-- A Discord application/bot with the **Server Members Intent** enabled if you want automatic role assignment.
-- Permission to send messages, embed links, use application commands, and manage roles when role assignment is enabled.
+- Node.js `20` or newer.
+- A Discord bot/application.
+- `Guilds` intent.
+- `Guild Members` intent if automatic acceptance-role assignment is enabled.
+- Bot permissions to view/send messages and embeds in the application/review/log channels.
+- **Manage Roles** plus a role hierarchy that allows the bot to assign the configured acceptance role.
 
 ## Installation
 
@@ -46,19 +72,42 @@ GUILD_ID=optional_test_guild_id
 DATABASE_PATH=./data/pauze-applications.db
 ```
 
-Never commit `.env` or a bot token.
+### Environment variables
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `DISCORD_TOKEN` | Yes | Discord bot token |
+| `CLIENT_ID` | Yes | Discord application/client ID used for command registration |
+| `GUILD_ID` | No | Test server ID for instant command registration |
+| `DATABASE_PATH` | No | SQLite database path; defaults to `./data/pauze-applications.db` |
+
+**Never commit `.env`, bot tokens, or database files containing application data.**
+
+## Discord Developer Portal setup
+
+1. Create/open your Discord application.
+2. Create a bot user.
+3. Copy the bot token into `.env` as `DISCORD_TOKEN`.
+4. Copy the application ID into `.env` as `CLIENT_ID`.
+5. Under **Bot → Privileged Gateway Intents**, enable **Server Members Intent** if you want automatic role assignment.
+6. Invite the bot with the `bot` and `applications.commands` scopes.
+7. Give it access to the channels used for panels, reviews and logs.
+
+The bot does not need Administrator permission. Use the smallest permissions that fit your server.
 
 ## Register commands
 
-For fast development, set `GUILD_ID` and run:
+For development/testing, set `GUILD_ID` and run:
 
 ```bash
 npm run register
 ```
 
-If `GUILD_ID` is omitted, commands are registered globally and can take time to propagate.
+Guild commands are recommended while configuring the bot because they update quickly.
 
-## Start
+If `GUILD_ID` is omitted, commands are registered globally and may take time to propagate.
+
+## Start the bot
 
 Development:
 
@@ -73,59 +122,207 @@ npm run build
 npm start
 ```
 
-## First-time configuration
+Type-check without producing build files:
+
+```bash
+npm run typecheck
+```
+
+## First-time server configuration
 
 ### 1. Configure the review system
+
+Run:
 
 ```text
 /application setup
 ```
 
-Choose the review channel and reviewer role. The reviewer role controls who can operate on submitted applications.
+Choose:
+
+- **review_channel** — where submitted applications appear for staff.
+- **reviewer_role** — role allowed to review applications.
+- **log_channel** — optional channel for audit events.
+
+Administrators can review applications even if they do not have the configured reviewer role.
 
 ### 2. Create an application type
+
+Run:
 
 ```text
 /application create
 ```
 
-Enter:
+Provide:
 
-- Name
+- Application name
 - Description
-- Up to five questions
 - Optional acceptance role
+- One to five questions
 
-Questions are displayed as Discord modal inputs when a member applies.
+Discord modals have a five-input limit, so the current form engine intentionally supports up to five questions per application.
 
-### 3. Publish the panel
+### 3. Publish the application panel
+
+Run:
 
 ```text
 /application panel
 ```
 
-Select an application type. Pauze Applications posts a clean panel with a **Start Application** button.
+The bot publishes a clean PauzeX-style panel with a select menu. Members choose the application they want and receive a private Discord modal.
 
-### 4. Review submissions
+### 4. Member submits an application
 
-New submissions are posted in the configured review channel. Reviewers can claim the application, add notes, hold it, accept it or reject it.
+The bot:
+
+1. Validates the application type.
+2. Prevents duplicate active applications of the same type.
+3. Saves the answers to SQLite.
+4. Generates a unique public application ID.
+5. Posts the submission in the configured review channel.
+6. Writes an audit event.
+7. Confirms submission privately to the applicant.
+
+### 5. Staff reviews it
+
+Reviewers can use:
+
+- **Claim** — mark the application as under review and assign the reviewer.
+- **Hold** — pause the application and notify the applicant.
+- **Notes** — save private internal reviewer notes.
+- **Accept** — finalize the application and optionally assign the configured role.
+- **Reject** — finalize the application as rejected.
+
+Final decisions disable the review controls on the original review message.
 
 ## Command reference
 
-| Command | Purpose |
-| --- | --- |
-| `/application setup` | Configure review channel and reviewer role |
-| `/application create` | Create an application type |
-| `/application panel` | Publish an application panel |
-| `/application list` | List configured application types |
+| Command | Who | Purpose |
+| --- | --- | --- |
+| `/application setup` | Manage Server | Configure review/reviewer/log channels |
+| `/application create` | Manage Server | Create an application type |
+| `/application panel` | Manage Server | Publish the application panel |
+| `/application list` | Manage Server | List application types |
 
-## Permissions
+## Application statuses
 
-Administrative setup commands require **Manage Guild**. Review actions require the configured reviewer role or server Administrator permission.
+```text
+🟡 Pending
+🔵 Under Review
+⏳ On Hold
+🟢 Accepted
+🔴 Rejected
+⚫ Archived
+```
+
+`Archived` is reserved for the planned archive workflow; the current review UI focuses on pending, under review, hold, accepted and rejected states.
+
+## Database
+
+Pauze Applications uses SQLite through `better-sqlite3`.
+
+The database stores:
+
+- Per-server configuration.
+- Application types and questions.
+- Application submissions and answers.
+- Reviewer/status metadata.
+- Internal notes.
+- Audit events.
+
+The default database is created automatically at:
+
+```text
+./data/pauze-applications.db
+```
+
+Back up this file if application history is important to your server.
 
 ## Data & privacy
 
-Application answers and review metadata are stored locally in SQLite. The project does not send application data to a third-party service by default. Server owners are responsible for their own retention, access and privacy policies.
+Application answers and review metadata are stored locally in SQLite. The project does not send application data to a third-party application-data service by default. Discord itself processes the messages, interactions and DMs required for the bot to operate.
+
+Server owners are responsible for determining their own retention, access and privacy requirements.
+
+## Security notes
+
+- Keep `DISCORD_TOKEN` private.
+- Never upload `.env` to GitHub.
+- Do not expose the SQLite database publicly.
+- Restrict the reviewer role to trusted staff.
+- Keep the bot's role below roles it should not be able to assign.
+- Give the bot only the channel and role permissions it needs.
+
+## Project structure
+
+```text
+PauzeApplications/
+├── src/
+│   ├── commands/
+│   │   └── application.ts
+│   ├── db.ts
+│   ├── deploy-commands.ts
+│   └── index.ts
+├── data/                 # runtime SQLite data, ignored by Git
+├── .env.example
+├── .gitignore
+├── LICENSE
+├── package.json
+├── tsconfig.json
+└── README.md
+```
+
+## Roadmap
+
+### v1.x
+
+- [x] Core application submission flow
+- [x] Multiple application types
+- [x] Reviewer workflow
+- [x] Audit logging
+- [x] Automatic acceptance roles
+- [ ] Multi-page application forms
+- [ ] Select-menu and choice questions
+- [ ] Application search and filters
+- [ ] Applicant status lookup
+- [ ] Reviewer statistics
+- [ ] Advanced status workflows
+- [ ] Transcripts and archives
+
+### v2.x
+
+- [ ] Web dashboard
+- [ ] Visual application builder
+- [ ] Custom embed branding
+- [ ] Advanced analytics
+- [ ] Configurable automation rules
+
+## Versioning & releases
+
+Pauze Applications follows semantic versioning:
+
+```text
+MAJOR.MINOR.PATCH
+```
+
+Example:
+
+```text
+1.0.0 → initial stable feature set
+1.1.0 → backwards-compatible features
+1.1.1 → backwards-compatible bug fixes
+2.0.0 → breaking changes
+```
+
+GitHub Releases should document:
+
+- Features
+- Improvements
+- Bug fixes
+- Breaking changes
+- Migration notes when necessary
 
 ## License
 
@@ -133,19 +330,10 @@ Pauze Applications is released under the **MIT License**. See [`LICENSE`](LICENS
 
 You may use, modify and distribute the software under the terms of that license. The Pauze name, branding and original artwork are not granted as trademarks by the MIT license.
 
-## Roadmap
-
-- [ ] Multi-page application forms
-- [ ] Select-menu and choice questions
-- [ ] Application search and filters
-- [ ] Reviewer statistics
-- [ ] Advanced status workflows
-- [ ] Transcripts and archives
-- [ ] Web dashboard
-- [ ] Custom embed branding
-
 ## Support
 
 Open an issue in the repository for bugs and feature requests.
+
+Repository: https://github.com/PauzeDevs/PauzeApplications
 
 **Pauze Applications — applications, without the clutter.**
