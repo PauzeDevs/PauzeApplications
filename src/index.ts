@@ -2034,6 +2034,20 @@ async function handleApplicationCommand(
       return;
     }
 
+    const applicationType = getApplicationType(
+      application.typeId,
+      application.guildId,
+    );
+
+    if (applicationType?.reviewMode === "vote") {
+      await interaction.reply({
+        content:
+          "🗳️ This application uses multi-reviewer voting. Use /application vote instead of a direct decision.",
+        ephemeral: true,
+      });
+      return;
+    }
+
     if (
       !canTransition(
         application.status,
