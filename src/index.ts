@@ -39,6 +39,7 @@ import {
   getApplicationTypes,
   getGuildConfig,
   getLatestApplicationForUser,
+  setGuildConfig,
   getReviewQueue,
   getUserApplications,
   hasActiveApplication,
@@ -380,7 +381,7 @@ async function sendAudit(
     .fetch(logChannelId)
     .catch(() => null);
 
-  if (!channel?.isTextBased()) return;
+  if (!channel?.isSendable()) return;
 
   const application = getApplication(
     applicationId,
@@ -991,7 +992,7 @@ async function handleApplicationCommand(
       return;
     }
 
-    if (!interaction.channel?.isTextBased()) {
+    if (!interaction.channel?.isSendable()) {
       await interaction.reply({
         content:
           "❌ This channel cannot receive application panels.",
@@ -1988,7 +1989,7 @@ async function handleApplicationSubmit(
 
   if (
     !reviewChannel ||
-    !reviewChannel.isTextBased()
+    !reviewChannel.isSendable()
   ) {
     await interaction.reply({
       content:
