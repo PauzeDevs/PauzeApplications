@@ -6,7 +6,7 @@ A clean, modular Discord application-management bot inspired by the familiar wor
 
 ## Status
 
-**Version:** `1.0.0` · **License:** MIT · **Runtime:** Node.js 20+
+**Version:** `1.1.0` · **License:** MIT · **Runtime:** Node.js 20+
 
 The current `main` branch contains the initial working release foundation plus UI/review-flow improvements. It is suitable for development/testing; production deployment should be tested against the target server first.
 
@@ -14,12 +14,14 @@ The current `main` branch contains the initial working release foundation plus U
 
 ### Applicant experience
 
-- Clean application panel with a Discord select menu.
+- Clean PauzeX-style application selection panel.
 - Modal-based application forms.
 - Up to five required questions per application type.
 - Unique application IDs.
 - Duplicate active-application protection.
 - Private submission confirmation.
+- Applicant status lookup.
+- Personal application history.
 - Applicant DM notifications when status changes.
 
 ### Staff experience
@@ -30,7 +32,12 @@ The current `main` branch contains the initial working release foundation plus U
 - Clean review embeds.
 - **Accept**, **Reject**, **Hold**, **Claim** and **Notes** actions.
 - Reviewer claiming and ownership tracking.
+- Reviewer assignment.
+- Review queue.
+- Application search.
+- Full application view.
 - Internal reviewer notes.
+- Application archiving.
 - Automatic acceptance roles.
 - Disabled review controls after a final decision.
 
@@ -42,8 +49,10 @@ The current `main` branch contains the initial working release foundation plus U
 - Optional acceptance role per application type.
 - Optional audit-log channel.
 - Persistent SQLite database.
+- Guild-scoped application lookups.
 - Audit events for submissions and staff actions.
 - Local-first data storage with no third-party application-data service required.
+- GitHub Actions type-check and build verification.
 
 ## Requirements
 
@@ -199,12 +208,41 @@ Final decisions disable the review controls on the original review message.
 
 ## Command reference
 
+### Applicant commands
+
+| Command | Who | Purpose |
+| --- | --- | --- |
+| `/application status` | Everyone | View your latest application |
+| `/application history` | Everyone | View your recent application history |
+
+### Server administration
+
 | Command | Who | Purpose |
 | --- | --- | --- |
 | `/application setup` | Manage Server | Configure review/reviewer/log channels |
 | `/application create` | Manage Server | Create an application type |
 | `/application panel` | Manage Server | Publish the application panel |
 | `/application list` | Manage Server | List application types |
+
+### Reviewer commands
+
+| Command | Who | Purpose |
+| --- | --- | --- |
+| `/application queue` | Reviewer | View active review work |
+| `/application search` | Reviewer | Search applications |
+| `/application view` | Reviewer | Open a full application |
+| `/application decide` | Reviewer | Accept, reject or hold |
+| `/application assign` | Reviewer | Assign a reviewer |
+| `/application archive` | Reviewer | Archive an application |
+| `/application note` | Reviewer | Save internal notes |
+
+## Application IDs
+
+Public IDs use a readable format similar to:
+
+    A-MF3ZP2-1A2B3C
+
+The public ID can be shared with applicants. Administrative commands also accept the internal numeric application ID.
 
 ## Application statuses
 
@@ -276,28 +314,43 @@ PauzeApplications/
 
 ## Roadmap
 
-### v1.x
+### 1.2.x — Advanced forms
 
-- [x] Core application submission flow
-- [x] Multiple application types
-- [x] Reviewer workflow
-- [x] Audit logging
-- [x] Automatic acceptance roles
 - [ ] Multi-page application forms
-- [ ] Select-menu and choice questions
-- [ ] Application search and filters
-- [ ] Applicant status lookup
-- [ ] Reviewer statistics
-- [ ] Advanced status workflows
-- [ ] Transcripts and archives
+- [ ] Choice/select question types
+- [ ] Number questions
+- [ ] URL validation
+- [ ] Question-level validation
+- [ ] Question ordering
+- [ ] Draft/publish states
 
-### v2.x
+### 1.3.x — Reviewer workspace
+
+- [ ] Advanced reviewer filters
+- [ ] Reviewer workload views
+- [ ] Multi-reviewer voting
+- [ ] Decision thresholds
+- [ ] Applicant/reviewer conversation tools
+- [ ] Interview stage
+
+### 1.4.x — Automation and analytics
+
+- [ ] Workflow action engine
+- [ ] Scheduled actions
+- [ ] Acceptance/rejection templates
+- [ ] Funnel analytics
+- [ ] Review-time analytics
+- [ ] CSV export
+- [ ] Archive browser
+
+### 2.x — Platform
 
 - [ ] Web dashboard
 - [ ] Visual application builder
-- [ ] Custom embed branding
-- [ ] Advanced analytics
-- [ ] Configurable automation rules
+- [ ] REST/API layer
+- [ ] Webhooks
+- [ ] Pauze Tickets integration
+- [ ] Advanced server customization
 
 ## Versioning & releases
 
