@@ -6,7 +6,7 @@ A clean, modular Discord application-management bot inspired by the familiar wor
 
 ## Status
 
-**Version:** `1.1.0` · **License:** MIT · **Runtime:** Node.js 20+
+**Version:** `1.2.0` · **License:** MIT · **Runtime:** Node.js 20+
 
 The current `main` branch contains the initial working release foundation plus UI/review-flow improvements. It is suitable for development/testing; production deployment should be tested against the target server first.
 
@@ -15,6 +15,7 @@ The current `main` branch contains the initial working release foundation plus U
 ### Applicant experience
 
 - Clean PauzeX-style application selection panel.
+- `/application apply` as a native applicant entry point.
 - Modal-based application forms.
 - Up to five required questions per application type.
 - Unique application IDs.
@@ -212,9 +213,14 @@ Final decisions disable the review controls on the original review message.
 
 | Command | Who | Purpose |
 | --- | --- | --- |
+| `/application apply` | Everyone | Open the application catalogue and start a form |
 | `/application status` | Everyone | View your latest application |
 | `/application history` | Everyone | View your recent application history |
 
+### Reviewer commands
+
+| Command | Who | Purpose |
+| --- | --- | --- |
 ### Server administration
 
 | Command | Who | Purpose |
@@ -314,7 +320,7 @@ PauzeApplications/
 
 ## Roadmap
 
-### 1.2.x — Advanced forms
+### 1.3.x — Advanced forms
 
 - [ ] Multi-page application forms
 - [ ] Choice/select question types
@@ -324,7 +330,7 @@ PauzeApplications/
 - [ ] Question ordering
 - [ ] Draft/publish states
 
-### 1.3.x — Reviewer workspace
+### 1.4.x — Reviewer workspace
 
 - [ ] Advanced reviewer filters
 - [ ] Reviewer workload views
@@ -333,7 +339,7 @@ PauzeApplications/
 - [ ] Applicant/reviewer conversation tools
 - [ ] Interview stage
 
-### 1.4.x — Automation and analytics
+### 1.5.x — Automation and analytics
 
 - [ ] Workflow action engine
 - [ ] Scheduled actions
