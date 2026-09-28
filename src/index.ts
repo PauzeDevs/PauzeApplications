@@ -26,7 +26,6 @@ import {
 } from "discord.js";
 import type {
   ChatInputCommandInteraction,
-  GuildMember,
   Interaction,
 } from "discord.js";
 
@@ -125,10 +124,12 @@ function isManageGuild(
 function isReviewerMember(interaction: Interaction): boolean {
   if (!interaction.inGuild()) return false;
 
-  const member = interaction.member as GuildMember;
+  // Discord can expose either a cached GuildMember or the raw interaction
+  // member payload. Support both so permissions do not depend on cache state.
+  const member = interaction.member as any;
 
   if (
-    member.permissions.has(
+    member?.permissions?.has?.(
       PermissionFlagsBits.Administrator,
     )
   ) {
@@ -138,10 +139,17 @@ function isReviewerMember(interaction: Interaction): boolean {
   const reviewerRoleId =
     getGuildConfig(interaction.guildId)?.reviewer_role_id;
 
-  return Boolean(
-    reviewerRoleId &&
-      member.roles.cache.has(reviewerRoleId),
-  );
+  if (!reviewerRoleId) return false;
+
+  if (member?.roles?.cache?.has) {
+    return member.roles.cache.has(
+      reviewerRoleId,
+    );
+  }
+
+  return Array.isArray(member?.roles)
+    ? member.roles.includes(reviewerRoleId)
+    : false;
 }
 
 function reviewButtons(
